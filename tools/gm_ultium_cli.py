@@ -144,7 +144,7 @@ def render(derived: dict[str, Any]) -> str:
     power = derived["battery_power_kw"]
     power_note = ""
     if power is not None:
-        power_note = " (charging)" if power > 0.5 else " (discharging)" if power < -0.5 else " (idle)"
+        power_note = " (charging)" if power > 0.05 else " (discharging)" if power < -0.05 else " (idle)"
     return "\n".join(
         [
             "GM Ultium / BrightDrop",

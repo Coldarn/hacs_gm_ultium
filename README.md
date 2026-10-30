@@ -79,7 +79,7 @@ Energy remaining       116.58 kWh
 Estimated capacity     172.8 kWh
 Pack voltage           312.35 V
 Pack current           0.90 A (positive = discharge)
-Battery power          -0.28 kW (idle)
+Battery power          -0.28 kW (discharging)
 Cell voltage (a/m/M)   3.9035 V / 3.9014 V / 3.9043 V
 Module temp (min/max)  24.5 / 25.0 C
 Range                  205.0 mi / 330.0 km
