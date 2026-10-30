@@ -51,8 +51,41 @@ larger than the dongle itself, which is why the response-time data matters.
 - Use `tmux` or `nohup` if you need to disconnect your SSH session.
 - The van should be parked in its normal state (not on a charger) for the
   baseline runs.
+- Lock the van, close the doors, and keep the key fob well away from it (or in
+  a Faraday pouch). Keyless-entry activity wakes modules and will ruin the
+  sleep measurement.
+- Do not use the MyGM/OnStar app, remote start, or scheduled climate/charging
+  during the run.
+- Note the start SOC, 12 V reading, ambient temperature, and the time you turn
+  the ignition off.
 
-## Three runs
+## Vehicle state and toggling
+
+The two families of runs need different vehicle states:
+
+**Dongle-only baseline:** leave the vehicle **off for the entire run**. Start
+the logger after the van has been off and locked for about 10 minutes. Do not
+touch it until the run ends. This measures the dongle's own draw and the 12 V
+trend with no vehicle-bus traffic.
+
+**Cycle and persistent runs:** start with the vehicle **on** for about five
+minutes so you can confirm every signal is live (`veh=Y` in the log), then turn
+it **off once** at a recorded time and leave it off for the rest of the run.
+That single on→off transition is the important event: it shows when the
+BEC/DMCM stop answering and whether your polling keeps them awake.
+
+Do **not** toggle the vehicle repeatedly. Each wake event confounds the sleep
+measurement. If you want to measure wake-up latency (how quickly the logger
+sees the vehicle come back), do that as a separate short test, not during the
+24 h run.
+
+**Charge session:** the vehicle is on and charging; that is a separate run.
+
+Starting the cycle/persistent runs with the vehicle on is deliberate: it gives
+a known-good awake baseline and a timestamped transition. Starting off would
+only tell you that the vehicle was already asleep.
+
+## Runs
 
 Run each for 24 h with a 60 s interval and CSV output. Use separate files.
 
@@ -62,12 +95,13 @@ Only queries `ATRV`/`ATIGN`; does not touch the vehicle bus.
 
 ```bash
 python tools/gm_ultium_sleep_log.py \
-  --mode dongle-only --interval 60 --duration 24 --csv \
+  --mode dongle-only --link persistent --interval 60 --duration 24 --csv \
   --output logs/dongle-only.jsonl
 ```
 
 This answers: how stable is the dongle, what does the 12 V supply do, and does
-the adapter stay connected without waking the car?
+the adapter stay connected without waking the car? Run it with the vehicle off
+for the whole session.
 
 ### 2. Connect / poll / disconnect
 
@@ -89,7 +123,20 @@ python tools/gm_ultium_sleep_log.py \
 ```
 
 This measures whether keeping the BLE link open changes the vehicle's sleep
-behavior or the dongle's own consumption.
+behavior or the dongle's own consumption. Start with the vehicle on, confirm
+`veh=Y`, then switch it off once and leave it off.
+
+### 4. Optional: dongle-only with connect/disconnect
+
+```bash
+python tools/gm_ultium_sleep_log.py \
+  --mode dongle-only --link cycle --interval 60 --duration 24 --csv \
+  --output logs/dongle-only-cycle.jsonl
+```
+
+Compare this with run 1 to separate the dongle's own connection overhead from
+the vehicle-bus effect. It does not query the vehicle, so the vehicle should be
+off for the whole run.
 
 ## Optional: charge session
 

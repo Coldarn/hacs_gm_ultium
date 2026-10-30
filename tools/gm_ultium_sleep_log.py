@@ -70,6 +70,7 @@ FIELDS = [
     "mono",
     "cycle",
     "mode",
+    "link",
     "connected",
     "scan_ms",
     "connect_ms",
@@ -265,6 +266,7 @@ def summarize(
     args: argparse.Namespace,
     started: str,
     ended: str,
+    link_mode: str,
 ) -> dict[str, Any]:
     atrv = [r["atrv_v"] for r in records if r.get("atrv_v") is not None]
     scan_ms = [r["scan_ms"] for r in records if r.get("scan_ms") is not None]
@@ -287,6 +289,7 @@ def summarize(
         "started": started,
         "ended": ended,
         "mode": args.mode,
+        "link": link_mode,
         "interval_s": args.interval,
         "cycles": len(records),
         "connected_cycles": sum(1 for r in records if r.get("connected")),
@@ -309,6 +312,13 @@ def summarize(
 async def run(args: argparse.Namespace) -> None:
     if args.duration <= 0 and args.max_cycles <= 0:
         raise SystemExit("Set --duration > 0 or --max-cycles > 0")
+
+    if args.mode == "cycle":
+        link_mode = "cycle"
+    elif args.mode == "persistent":
+        link_mode = "persistent"
+    else:
+        link_mode = "persistent" if args.link == "auto" else args.link
 
     started = utcnow()
     stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
@@ -336,8 +346,9 @@ async def run(args: argparse.Namespace) -> None:
 
     print(f"logging to {output}" + (f" and {csv_path}" if csv_path else ""))
     print(
-        f"mode={args.mode} interval={args.interval}s duration={args.duration}h "
-        f"max_cycles={args.max_cycles or 'none'} at_timeout=0x{args.at_timeout}"
+        f"mode={args.mode} link={link_mode} interval={args.interval}s "
+        f"duration={args.duration}h max_cycles={args.max_cycles or 'none'} "
+        f"at_timeout=0x{args.at_timeout}"
     )
 
     try:
@@ -356,6 +367,7 @@ async def run(args: argparse.Namespace) -> None:
                     "mono": round(cycle_start - started_mono, 3),
                     "cycle": cycle,
                     "mode": args.mode,
+                    "link": link_mode,
                     "connected": False,
                     "errors": [],
                 }
@@ -400,7 +412,7 @@ async def run(args: argparse.Namespace) -> None:
                 api = None
                 device = None
             finally:
-                if args.mode == "cycle" or record.get("transport_error"):
+                if link_mode == "cycle" or record.get("transport_error"):
                     close_api(api)
                     api = None
                     device = None
@@ -455,7 +467,7 @@ async def run(args: argparse.Namespace) -> None:
             csv_file.close()
 
         ended = utcnow()
-        summary = summarize(records, args, started, ended)
+        summary = summarize(records, args, started, ended, link_mode)
         summary_path = output.with_name(output.stem + "-summary.json")
         summary_path.write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8")
         print("\nSummary")
@@ -474,6 +486,12 @@ def parse_args() -> argparse.Namespace:
         choices=["persistent", "cycle", "dongle-only"],
         default="cycle",
         help="persistent link, connect/disconnect per sample, or dongle-local only",
+    )
+    parser.add_argument(
+        "--link",
+        choices=["auto", "persistent", "cycle"],
+        default="auto",
+        help="BLE link behavior for --mode dongle-only (auto=persistent)",
     )
     parser.add_argument("--interval", type=float, default=60.0, help="seconds between samples")
     parser.add_argument("--duration", type=float, default=24.0, help="hours; 0 disables the deadline")

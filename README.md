@@ -101,7 +101,7 @@ the polling strategy can be chosen from data.
 
 # 24 h baseline without touching the vehicle bus
 .venv/bin/python tools/gm_ultium_sleep_log.py \
-  --mode dongle-only --interval 60 --duration 24 --csv
+  --mode dongle-only --link persistent --interval 60 --duration 24 --csv
 
 # 24 h connect/poll/disconnect
 .venv/bin/python tools/gm_ultium_sleep_log.py \
@@ -112,8 +112,13 @@ the polling strategy can be chosen from data.
   --mode persistent --interval 60 --duration 24 --csv
 ```
 
+Run the `dongle-only` baseline with the van off for the whole session. For the
+`cycle` and `persistent` runs, start with the van on, confirm `veh=Y`, then
+switch it off once at a recorded time and leave it off. Do not toggle the
+vehicle repeatedly; that confounds the sleep measurement.
+
 See [docs/sleep-power-plan.md](docs/sleep-power-plan.md) for the clamp-meter
-measurements, the three-run comparison, and the decision criteria.
+measurements, the run comparison, and the decision criteria.
 
 ## Home Assistant installation
 
