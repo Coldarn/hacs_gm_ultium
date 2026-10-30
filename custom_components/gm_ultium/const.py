@@ -14,7 +14,7 @@ DOMAIN = "gm_ultium"
 DOMAIN_DATA = f"{DOMAIN}_data"
 
 ATTRIBUTION = "Based on dala318/obd2_ble (MIT)"
-ISSUE_URL = "https://github.com/dala318/obd2_ble/issues"
+ISSUE_URL = "https://github.com/Coldarn/hacs_gm_ultium/issues"
 
 # Platforms
 PLATFORMS: list[Platform] = [Platform.SENSOR, Platform.BINARY_SENSOR]

@@ -21,12 +21,12 @@
       "service_uuid": "000018f0-0000-1000-8000-00805f9b34fb"
     }
   ],
-  "codeowners": [],
+  "codeowners": ["@Coldarn"],
   "config_flow": true,
   "dependencies": ["bluetooth_adapters", "bluetooth"],
-  "documentation": "https://github.com/your-github-user/gm_ultium",
+  "documentation": "https://github.com/Coldarn/hacs_gm_ultium",
   "iot_class": "local_polling",
-  "issue_tracker": "https://github.com/your-github-user/gm_ultium/issues",
+  "issue_tracker": "https://github.com/Coldarn/hacs_gm_ultium/issues",
   "loggers": ["obdii", "gm_ultium"],
   "requirements": ["py-obdii==0.10.5b0", "bleak", "bleak-retry-connector"],
   "version": "0.1.0"

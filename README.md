@@ -3,6 +3,8 @@
 Read battery state from GM Ultium (BT1/BEV3) vehicles over a BLE OBD-II
 dongle, without the manufacturer app.
 
+[![Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=Coldarn&repository=hacs_gm_ultium&category=Integration)
+
 This project is derived from
 [dala318/obd2_ble](https://github.com/dala318/obd2_ble) (MIT). The BLE
 transport, config flow, adaptive polling, and HACS packaging come from that
@@ -130,11 +132,11 @@ tools/gm_ultium_cli.py
 tests/
 ```
 
-1. Create a GitHub repository for this fork and replace `your-github-user` in
-   `custom_components/gm_ultium/manifest.json`.
-2. Add the repository to HACS as a custom integration repository.
-3. Install **GM Ultium**, restart Home Assistant, and add the integration.
-4. Select the VEEPEAK device (or enter its MAC address).
+1. Add `https://github.com/Coldarn/hacs_gm_ultium` to HACS as a custom
+   integration repository.
+2. Install **GM Ultium**, restart Home Assistant.
+3. Add the integration and select the VEEPEAK device (or enter its MAC
+   address).
 
 The integration discovers `VEEPEAK*` advertisements and defaults the write
 characteristic to `FFF2`. The entity layer (SOC, remaining charge, estimated

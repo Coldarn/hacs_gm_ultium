@@ -1,7 +1,9 @@
-"""Custom integration to integrate OBD2 BLE with Home Assistant.
+"""Custom integration to integrate GM Ultium vehicles with Home Assistant.
 
 For more details about this integration, please refer to
-https://github.com/dala318/obd2_ble
+https://github.com/Coldarn/hacs_gm_ultium
+
+Derived from dala318/obd2_ble (MIT); see README.md for attribution.
 """
 
 import logging
