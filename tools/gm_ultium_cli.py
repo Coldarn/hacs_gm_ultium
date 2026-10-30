@@ -16,6 +16,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
+import logging
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -26,11 +27,13 @@ sys.path.insert(0, str(ROOT / "custom_components" / "gm_ultium" / "obdii"))
 
 from bleak import BleakScanner  # noqa: E402
 from obdii import Connection, at_commands  # noqa: E402
-from obdii.basetypes import MISSING  # noqa: E402
 from obdii.protocol import Protocol  # noqa: E402
 
 import ultium_commands as uc  # noqa: E402
 from transport_ble import TransportBLE  # noqa: E402
+
+logging.getLogger("obdii").setLevel(logging.WARNING)
+logging.getLogger("obdii").propagate = False
 
 DEFAULT_ADDRESS = "66:1E:87:05:B3:41"
 WRITE_UUID = "0000fff2-0000-1000-8000-00805f9b34fb"
@@ -187,9 +190,7 @@ async def run(address: str, timeout: float) -> dict[str, Any]:
         transport=transport,
         auto_connect=False,
         protocol=Protocol.ISO_15765_4_CAN_B,  # ATSP7, 29-bit / 500 kbit
-        log_handler=MISSING,
-        log_formatter=MISSING,
-        log_level=MISSING,
+        log_handler=None,
     )
 
     await asyncio.to_thread(api.connect)

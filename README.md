@@ -87,6 +87,34 @@ Charge state           idle (0x00)
 12 V rail              13.6 V
 ```
 
+## Sleep and power logging
+
+The OBD-II port is permanently powered, and polling can keep the vehicle's
+gateway/BEC awake. `tools/gm_ultium_sleep_log.py` records `ATRV`, `ATIGN`, the
+vehicle response state, SOC, pack voltage/current, and timing over long runs so
+the polling strategy can be chosen from data.
+
+```bash
+# 6-cycle smoke test
+.venv/bin/python tools/gm_ultium_sleep_log.py \
+  --mode cycle --interval 10 --duration 0 --max-cycles 6 --csv
+
+# 24 h baseline without touching the vehicle bus
+.venv/bin/python tools/gm_ultium_sleep_log.py \
+  --mode dongle-only --interval 60 --duration 24 --csv
+
+# 24 h connect/poll/disconnect
+.venv/bin/python tools/gm_ultium_sleep_log.py \
+  --mode cycle --interval 60 --duration 24 --csv
+
+# 24 h persistent BLE link
+.venv/bin/python tools/gm_ultium_sleep_log.py \
+  --mode persistent --interval 60 --duration 24 --csv
+```
+
+See [docs/sleep-power-plan.md](docs/sleep-power-plan.md) for the clamp-meter
+measurements, the three-run comparison, and the decision criteria.
+
 ## Home Assistant installation
 
 The component is laid out as a HACS custom integration:
