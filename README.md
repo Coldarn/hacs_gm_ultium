@@ -62,7 +62,7 @@ This is the fastest way to verify the vehicle and dongle. It uses the same
 
 ```bash
 python3 -m venv .venv
-.venv/bin/pip install py-obdii==0.10.5b0 bleak bleak-retry-connector
+.venv/bin/pip install -r requirements-dev.txt
 
 .venv/bin/python tools/gm_ultium_cli.py
 .venv/bin/python tools/gm_ultium_cli.py --json

@@ -1,0 +1,7 @@
+# Runtime dependencies are declared in custom_components/gm_ultium/manifest.json.
+# These are for the standalone CLI, the sleep logger, and the decoder tests.
+py-obdii==0.10.5b0
+bleak
+bleak-retry-connector
+pytest
+pytest-cov
