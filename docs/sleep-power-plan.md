@@ -34,6 +34,38 @@ dongle current in four states:
 Multiply by 12 V and 24 h to get Wh/day. The vehicle-awake cost is usually much
 larger than the dongle itself, which is why the response-time data matters.
 
+## Running from Home Assistant
+
+If HA is always on and in BLE range, use the integration's measurement mode
+instead of a laptop:
+
+1. Add the integration and enable **Measurement mode**. The normal coordinator
+   is disabled so the logger is the only BLE owner.
+2. Start a run from Developer Tools → Actions:
+
+   ```yaml
+   action: gm_ultium.start_sleep_log
+   data:
+     mode: cycle          # persistent | cycle | dongle-only
+     link: auto           # only used by dongle-only
+     interval: 60
+     duration: 24
+     csv: true
+   ```
+
+3. Stop with `gm_ultium.stop_sleep_log`; get the latest summary with
+   `gm_ultium.get_sleep_log_summary`.
+4. Download the files from HA:
+
+   ```text
+   /local/gm_ultium_logs/<name>.jsonl
+   /local/gm_ultium_logs/<name>.csv
+   /local/gm_ultium_logs/<name>-summary.json
+   ```
+
+The `sensor.gm_ultium_sleep_log` entity shows the current state and file URLs.
+The vehicle-state protocol below is unchanged.
+
 ## Preparation
 
 - Stop Car Scanner and any other BLE client. Only one central can hold the

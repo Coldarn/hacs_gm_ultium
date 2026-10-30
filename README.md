@@ -11,9 +11,9 @@ transport, config flow, adaptive polling, and HACS packaging come from that
 project. The GM Ultium command set, 29-bit header handling, and validated
 signal definitions are new here.
 
-> **Status:** the protocol layer and standalone CLI are validated live against
-> a 2024 BrightDrop Zevo with a VEEPEAK BLE dongle (ELM327 v1.5). The Home
-> Assistant entity layer is the next milestone.
+> **Status:** the protocol layer, standalone CLI, and Home Assistant measurement
+> mode are validated against a 2024 BrightDrop Zevo with a VEEPEAK BLE dongle
+> (ELM327 v1.5). The normal entity layer is the next milestone.
 
 ## Validated signals
 
@@ -139,9 +139,47 @@ tests/
    address).
 
 The integration discovers `VEEPEAK*` advertisements and defaults the write
-characteristic to `FFF2`. The entity layer (SOC, remaining charge, estimated
-capacity, signed power, charging, cell voltages, range, 12 V) is being built on
-top of the validated command set.
+characteristic to `FFF2`. The normal entity layer (SOC, remaining charge,
+estimated capacity, signed power, charging, cell voltages, range, 12 V) is the
+next milestone.
+
+## Measurement mode
+
+For the 24 h sleep/power tests, enable **Measurement mode** when adding the
+integration. This creates a config entry but disables the normal coordinator,
+so the sleep logger is the only BLE owner.
+
+Start a run from Developer Tools → Actions:
+
+```yaml
+action: gm_ultium.start_sleep_log
+data:
+  mode: cycle          # persistent | cycle | dongle-only
+  link: auto           # only used by dongle-only
+  interval: 60
+  duration: 24
+  csv: true
+```
+
+Stop it with `gm_ultium.stop_sleep_log`, and read the latest summary with
+`gm_ultium.get_sleep_log_summary`.
+
+Logs are written to `/config/www/gm_ultium_logs/` and are downloadable from
+Home Assistant at:
+
+```text
+/local/gm_ultium_logs/<name>.jsonl
+/local/gm_ultium_logs/<name>.csv
+/local/gm_ultium_logs/<name>-summary.json
+```
+
+A diagnostic `sensor.gm_ultium_sleep_log` shows `idle` / `running` /
+`complete` / `error` with the current cycle count, last ATRV, last vehicle
+response, and file URLs.
+
+Use the vehicle-state protocol in
+[docs/sleep-power-plan.md](docs/sleep-power-plan.md): dongle-only runs with the
+van off, cycle/persistent runs starting on and switched off once.
 
 ## Power and sleep behavior
 

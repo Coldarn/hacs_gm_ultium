@@ -22,6 +22,7 @@ from .const import (
     CONF_CACHED_VALUES,
     CONF_FAST_POLL,
     CONF_HW_VERSION,
+    CONF_MEASUREMENT_MODE,
     CONF_SLOW_POLL,
     CONF_XS_POLL,
     CONF_CHARACTERISTIC_UUID_READ,
@@ -53,14 +54,18 @@ class Obd2BleDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Response]]):
         self, hass: HomeAssistant, entry: Obd2BleConfigEntry
     ) -> None:
         """Initialize."""
+        measurement_mode = bool(entry.data.get(CONF_MEASUREMENT_MODE, False))
         super().__init__(
             hass,
             _LOGGER,
             name=DOMAIN,
-            update_interval=timedelta(seconds=entry.options.get(CONF_FAST_POLL, DEFAULT_FAST_POLL)),
+            update_interval=None
+            if measurement_mode
+            else timedelta(seconds=entry.options.get(CONF_FAST_POLL, DEFAULT_FAST_POLL)),
             always_update=True,
             config_entry=entry,
         )
+        self.measurement_mode = measurement_mode
 
         self._cache_data: dict[str, Response] = {}
         self._supported_pids = []
@@ -142,6 +147,9 @@ class Obd2BleDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Response]]):
 
     async def _async_update_data(self) -> dict[str, Response]:
         """Update data via library."""
+
+        if self.measurement_mode:
+            return {}
 
         if not self.config_entry or not self.config_entry.unique_id:
             _LOGGER.error("No config entry available for coordinator")

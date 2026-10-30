@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from typing import TypedDict
-from glob import translate
+from fnmatch import translate
 import re
 
 from bleak.backends.scanner import AdvertisementData

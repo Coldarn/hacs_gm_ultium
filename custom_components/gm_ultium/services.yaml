@@ -1,3 +1,90 @@
 attempt_to_connect:
   name: Attempt to Connect to Car
   description: Connects briefly to check if the car is reachable. Useful if long polling intervals are used and you have indication that the car is reachable again.
+
+start_sleep_log:
+  name: Start sleep/power log
+  description: >-
+    Start a read-only sleep/power measurement log. Measurement mode must be
+    enabled on the config entry so the normal coordinator does not compete for
+    the BLE dongle. Logs are written under /config/www/gm_ultium_logs and are
+    downloadable from /local/gm_ultium_logs/.
+  fields:
+    mode:
+      name: Query mode
+      description: >-
+        persistent (vehicle queries, one BLE link), cycle (vehicle queries,
+        connect/disconnect each sample), or dongle-only (no vehicle bus traffic).
+      required: true
+      example: cycle
+      default: cycle
+      selector:
+        select:
+          options:
+            - persistent
+            - cycle
+            - dongle-only
+    link:
+      name: BLE link behavior
+      description: Only used with mode dongle-only. auto means persistent.
+      required: false
+      default: auto
+      selector:
+        select:
+          options:
+            - auto
+            - persistent
+            - cycle
+    interval:
+      name: Interval
+      description: Seconds between samples.
+      required: false
+      default: 60
+      selector:
+        number:
+          min: 5
+          max: 3600
+          unit_of_measurement: seconds
+          mode: box
+    duration:
+      name: Duration
+      description: Hours to run. Set to 0 only when max_cycles is set.
+      required: false
+      default: 24
+      selector:
+        number:
+          min: 0
+          max: 168
+          unit_of_measurement: hours
+          mode: box
+    csv:
+      name: Write CSV
+      description: Also write a CSV file next to the JSONL file.
+      required: false
+      default: true
+      selector:
+        boolean: {}
+    output:
+      name: Output filename
+      description: Optional JSONL filename under /config/www/gm_ultium_logs.
+      required: false
+      selector:
+        text: {}
+    max_cycles:
+      name: Maximum cycles
+      description: Stop after this many cycles. 0 means no cycle limit.
+      required: false
+      default: 0
+      selector:
+        number:
+          min: 0
+          max: 100000
+          mode: box
+
+stop_sleep_log:
+  name: Stop sleep/power log
+  description: Stop the currently running sleep/power measurement log.
+
+get_sleep_log_summary:
+  name: Get sleep/power log summary
+  description: Return the summary of the most recent sleep/power log.

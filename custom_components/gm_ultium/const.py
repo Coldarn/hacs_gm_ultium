@@ -28,6 +28,21 @@ CONF_CHARACTERISTIC_UUID_WRITE = "characteristic_uuid_write"
 CONF_PROTOCOL = "protocol"
 CONF_ENABLED = "enabled"
 CONF_HW_VERSION = "hw_version"
+CONF_MEASUREMENT_MODE = "measurement_mode"
+
+# Sleep/power measurement service fields
+CONF_SLEEP_MODE = "mode"
+CONF_LINK = "link"
+CONF_INTERVAL = "interval"
+CONF_DURATION = "duration"
+CONF_CSV = "csv"
+CONF_OUTPUT = "output"
+CONF_MAX_CYCLES = "max_cycles"
+
+ACTION_START_SLEEP_LOG = "start_sleep_log"
+ACTION_STOP_SLEEP_LOG = "stop_sleep_log"
+ACTION_GET_SLEEP_LOG_SUMMARY = "get_sleep_log_summary"
+SLEEP_LOG_WWW_DIR = "gm_ultium_logs"
 
 CONF_CACHED_VALUES = "cached_values"
 CONF_SLOW_POLL = "slow_poll"

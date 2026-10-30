@@ -12,6 +12,7 @@ from homeassistant.components.sensor import (
     SensorEntityDescription,
     SensorStateClass,
 )
+from homeassistant.const import CONF_ADDRESS, EntityCategory
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry
 
@@ -22,6 +23,8 @@ from .const import (
     CONF_UNIT,
     CONF_DEVICE_CLASS,
     CONF_STATE_CLASS,
+    CONF_MEASUREMENT_MODE,
+    DOMAIN,
     ICON_KEYWORDS
 )
 from .coordinator import Obd2BleDataUpdateCoordinator
@@ -149,7 +152,41 @@ async def async_setup_entry(
         ObdBleSensor(coordinator, entry, sensor)
         for sensor in sensor_commands
     ]
+    if entry.data.get(CONF_MEASUREMENT_MODE):
+        entities.append(SleepLogStatusSensor(hass, coordinator, entry))
     async_add_entities(entities)
+
+
+class SleepLogStatusSensor(SensorEntity):
+    """Diagnostic sensor showing the sleep/power logger state."""
+
+    _attr_should_poll = True
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+    _attr_icon = "mdi:chart-timeline-variant"
+
+    def __init__(
+        self,
+        hass: HomeAssistant,
+        coordinator: Obd2BleDataUpdateCoordinator,
+        entry: Obd2BleConfigEntry,
+    ) -> None:
+        self._hass = hass
+        self._attr_name = "Sleep log"
+        self._attr_unique_id = f"{entry.data[CONF_ADDRESS]}-sleep-log"
+        self._attr_device_info = coordinator.device_info
+
+    def update(self) -> None:
+        logger = self._hass.data.get(DOMAIN, {}).get("sleep_log")
+        if logger is None:
+            self._attr_native_value = "idle"
+            self._attr_extra_state_attributes = {}
+            return
+
+        status = logger.status
+        self._attr_native_value = status.get("state", "idle")
+        self._attr_extra_state_attributes = {
+            key: value for key, value in status.items() if key != "state"
+        }
 
 class ObdBleSensor(ObdBleEntity, SensorEntity):
     """Config entry for obd2_ble sensors."""

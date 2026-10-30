@@ -33,6 +33,7 @@ from . import Obd2BleConfigEntry
 from .const import (
     DOMAIN,
     CONF_AUTO_CONFIGURE,
+    CONF_MEASUREMENT_MODE,
     CONF_CHARACTERISTIC_UUID_READ,
     CONF_CHARACTERISTIC_UUID_WRITE,
     CONF_PROTOCOL,
@@ -60,6 +61,12 @@ from .obdii.transport_ble_identifiers import AVAILABLE_OBD2_CLASSES, BaseOBD2, a
 from .sensor import get_list_of_units, propose_icon_from_command, propose_sensor_device_class, propose_sensor_state_class
 
 _LOGGER = logging.getLogger(__name__)
+
+# OptionsFlowWithReload was added in a later Home Assistant release. Fall back
+# to the standard OptionsFlow on older installs so the integration still loads.
+_OPTIONS_FLOW_BASE = getattr(
+    config_entries, "OptionsFlowWithReload", config_entries.OptionsFlow
+)
 
 
 @dataclass
@@ -146,6 +153,16 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             )
             self._abort_if_unique_id_configured()
 
+            if user_input.get(CONF_MEASUREMENT_MODE):
+                assert self._discovery_info is not None
+                return self.async_create_entry(
+                    title=f"{self._discovery_info.name} (measurement)",
+                    data={
+                        CONF_ADDRESS: self._discovery_info.address,
+                        CONF_MEASUREMENT_MODE: True,
+                    },
+                )
+
             if user_input.get(CONF_AUTO_CONFIGURE, True):
                 if obdii_dev := await self._async_device_supported(self._discovery_info):
                     _LOGGER.debug("Auto-configuring device %s using class %s", self._discovery_info.name, obdii_dev.__name__)
@@ -195,6 +212,7 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 vol.Required(
                     CONF_AUTO_CONFIGURE, default=True
                 ): bool,
+                vol.Optional(CONF_MEASUREMENT_MODE, default=False): bool,
             }
         )
         return self.async_show_form(
@@ -306,7 +324,7 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             self._transport.close()
         super().async_remove()
 
-class Obd2BleOptionsFlowHandler(config_entries.OptionsFlowWithReload):
+class Obd2BleOptionsFlowHandler(_OPTIONS_FLOW_BASE):
     """Config flow options handler for obd2_ble."""
 
     def __init__(self) -> None:

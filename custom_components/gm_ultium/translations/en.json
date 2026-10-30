@@ -12,7 +12,8 @@
         "description": "Please select your OBD-II Bluetooth device from the discovered list below.",
         "data": {
           "address": "Discovered Devices",
-          "auto_configure": "Attempt automatic profile detection."
+          "auto_configure": "Attempt automatic profile detection.",
+          "measurement_mode": "Measurement mode (sleep/power logging; disables normal polling)"
         }
       },
       "connection": {
