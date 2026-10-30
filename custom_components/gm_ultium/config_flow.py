@@ -1,4 +1,4 @@
-"""Adds config flow for OBD2 BLE."""
+"""Adds config flow for GM Ultium."""
 
 import logging
 from typing import Any

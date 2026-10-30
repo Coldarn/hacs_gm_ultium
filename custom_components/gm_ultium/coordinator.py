@@ -1,4 +1,4 @@
-"""Coordinator for OBD2 BLE."""
+"""Coordinator for GM Ultium."""
 
 from datetime import timedelta
 import logging

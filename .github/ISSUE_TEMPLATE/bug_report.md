@@ -31,7 +31,7 @@ A clear and concise description of what actually happens.
 ## Environment
 
 - Home Assistant version: [e.g. 2025.3.1]
-- OBD2 BLE integration version: [e.g. 0.3.1b2]
+- GM Ultium integration version: [e.g. 0.3.1b2]
 - Device name: [e.g. OBDBLE dongle model]
 - OS: [e.g. Linux]
 

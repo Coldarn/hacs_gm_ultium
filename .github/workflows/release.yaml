@@ -21,15 +21,15 @@ jobs:
         shell: "bash"
         run: |
           yq -i -o json '.version="${{ github.event.release.tag_name }}"' \
-            "${{ github.workspace }}/custom_components/obd2_ble/manifest.json"
+            "${{ github.workspace }}/custom_components/gm_ultium/manifest.json"
 
       - name: "ZIP the integration directory"
         shell: "bash"
         run: |
-          cd "${{ github.workspace }}/custom_components/obd2_ble"
-          zip obd2_ble.zip -r ./
+          cd "${{ github.workspace }}/custom_components/gm_ultium"
+          zip gm_ultium.zip -r ./
 
       - name: "Upload the ZIP file to the release"
         uses: softprops/action-gh-release@v2.0.8
         with:
-          files: ${{ github.workspace }}/custom_components/obd2_ble/obd2_ble.zip
+          files: ${{ github.workspace }}/custom_components/gm_ultium/gm_ultium.zip

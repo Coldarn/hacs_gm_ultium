@@ -8,7 +8,7 @@
   "config": {
     "step": {
       "user": {
-        "title": "Select OBD2 BLE Device",
+        "title": "Select GM Ultium Device",
         "description": "Please select your OBD-II Bluetooth device from the discovered list below.",
         "data": {
           "address": "Discovered Devices",
@@ -31,7 +31,7 @@
     },
     "abort": {
       "not_supported": "The discovered Bluetooth advertisement data pattern is not supported by this integration.",
-      "no_unconfigured_devices": "No unconfigured OBD2 BLE devices found on your Bluetooth network."
+      "no_unconfigured_devices": "No unconfigured GM Ultium devices found on your Bluetooth network."
     },
     "error": {
       "missing_unique_id": "Critical connection error: The configuration entry lacks a valid unique Bluetooth MAC address identifier.",
@@ -41,7 +41,7 @@
   "options": {
     "step": {
       "init": {
-        "title": "OBD2 Configuration Menu",
+        "title": "GM Ultium Configuration Menu",
         "description": "Please select which subsystem of your OBD-II integration profile you want to adjust.",
         "menu_options": {
           "polling": "Configure polling parameters & sleep states",

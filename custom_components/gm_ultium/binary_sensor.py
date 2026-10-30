@@ -1,4 +1,4 @@
-"""Sensor platform for OBD2 BLE."""
+"""Binary sensor platform for GM Ultium."""
 
 import logging
 from typing import Callable

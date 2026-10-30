@@ -1,4 +1,4 @@
-custom_components/obd2_ble/debug.py
+custom_components/gm_ultium/debug.py
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

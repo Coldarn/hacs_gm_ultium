@@ -1,70 +1,148 @@
-# OBD2 BLE
+# GM Ultium for Home Assistant
 
-A Home Assistant integration for reading OBD2 vehicle data via Bluetooth Low Energy (BLE).
+Read battery state from GM Ultium (BT1/BEV3) vehicles over a BLE OBD-II
+dongle, without the manufacturer app.
 
-Uses [PaulMarisOUMary OBDII](https://github.com/PaulMarisOUMary/OBDII) as library for interfacing the OBD2.
+This project is derived from
+[dala318/obd2_ble](https://github.com/dala318/obd2_ble) (MIT). The BLE
+transport, config flow, adaptive polling, and HACS packaging come from that
+project. The GM Ultium command set, 29-bit header handling, and validated
+signal definitions are new here.
 
-## Features
+> **Status:** the protocol layer and standalone CLI are validated live against
+> a 2024 BrightDrop Zevo with a VEEPEAK BLE dongle (ELM327 v1.5). The Home
+> Assistant entity layer is the next milestone.
 
-- Real-time OBD2 data reading from compatible BLE devices
-- Automatic device discovery via Bluetooth
-- Configurable polling intervals for different vehicle states
-- Support for caching sensor values
-- Automatic reconnection when the device comes back in range
+## Validated signals
 
-## Installation
+All values below were read live through the OBD-II port. Requests use UDS
+service `0x22` (read-only) over 29-bit CAN at 500 kbit.
 
-### Via HACS (Recommended)
+| Signal | ECU | Request | Decode | Live value |
+|---|---|---|---|---|
+| State of charge | BEC `0xCB` | `22 27C6` | `u16 × 100 / 65535` | 67.46 % |
+| Energy remaining | BEC `0xCB` | `22 27AF` | `u16 / 100` | 116.58 kWh |
+| Cell voltage avg/min/max | BEC `0xCB` | `22 2AF5` | `u16 / 10000` | 3.9035 / 3.9014 / 3.9043 V |
+| Module temperature min/max | BEC `0xCB` | `22 2AF1` | `(byte − 40) / 2` (experimental) | 24.5 / 25.0 °C |
+| Range | BEC `0xCB` | `22 27C7` | `u24 / 103` miles | 205 mi |
+| Charge state | BEC `0xCB` | `22 5401` | `0x00` idle, `0x91–0x99` charging | idle |
+| Pack voltage | DMCM `0x17` | `22 2885` | `u16 / 100` | 312.35 V |
+| Pack current | DMCM `0x17` | `22 2414` | `s16 / 20` A, positive = discharge | +0.90 A |
+| 12 V rail | BEC `0xCB` | `22 33E5` | `byte / 10` | 13.6 V |
 
-[![Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=dala318&repository=obd2_ble&category=Integration)
+Derived in software:
 
-1. Add this repository to HACS as a custom repository.
-2. Search for "OBD2 BLE" in HACS and install it.
-3. Restart Home Assistant.
+- **Battery power** = `−(pack voltage × pack current) / 1000` kW.
+  Positive means charging, negative means discharging.
+- **Estimated usable capacity** = `energy remaining ÷ (SOC / 100)` kWh.
+  The live sample gives 172.8 kWh, consistent with the pack size.
+- **Charging** = power above a small threshold, negative current, or charge
+  state `0x91–0x99`.
 
-### Manual Installation
+The dashboard SOC (67 %) matches `27C6` (67.46 %, truncated by the dash), so
+`27C6` is the canonical SOC. `2B43` is intentionally not used: the BEC emits a
+malformed ISO-TP length for that 29-byte response on this vehicle.
 
-1. Copy the `custom_components/obd2_ble` folder to your Home Assistant `custom_components` directory.
-2. Restart Home Assistant.
-3. Go to Settings → Devices & Services → Add Integration.
-4. Search for `OBD2 BLE` and add it.
-5. Restart Home Assistant if prompted.
+## Hardware and protocol notes
 
-## Configuration
+- Dongle: VEEPEAK BLE (`FFF0` service, `FFF2` write, `FFF1` notify).
+- Adapter: ELM327 v1.5 clone reporting `ATDPN 7` (ISO 15765-4 CAN, 29-bit,
+  500 kbit).
+- **This clone rejects the 4-byte `ATSH 18DACBF1` form.** Use the 3-byte form
+  `ATSH DACBF1` with `ATSP7`; the adapter supplies the 29-bit priority.
+- `py-obdii` must receive **hex strings**, not integers, when building `ATSH`.
+  Integers are formatted as decimal and the adapter replies `?`.
+- Only one BLE central can hold the dongle. Stop Car Scanner (or any other OBD
+  app) before running Home Assistant or the CLI.
 
-The integration is configured via the UI. No YAML configuration is required.
+## Standalone CLI
 
-1. Supported OBD2 BLE devices should be discovered automatically and offered during setup.
-2. If your device is not found but is within range, it is likely not supported.
-3. After adding the integration, open the integration options and choose "Configure commands".
-4. On the Commands selection page, choose the supported commands you want to enable.
-5. The command configuration page will repeat for each selected command.
-6. When finished, the integration reloads and the selected sensors should appear.
+This is the fastest way to verify the vehicle and dongle. It uses the same
+`TransportBLE` + `py-obdii` stack as the integration.
 
-### Setup Requirements
+```bash
+python3 -m venv .venv
+.venv/bin/pip install py-obdii==0.10.5b0 bleak bleak-retry-connector
 
-- A compatible OBD2 BLE device
-- Home Assistant with Bluetooth support (ESPHome Bluetooth Proxy)
+.venv/bin/python tools/gm_ultium_cli.py
+.venv/bin/python tools/gm_ultium_cli.py --json
+.venv/bin/python tools/gm_ultium_cli.py AA:BB:CC:DD:EE:FF
+```
 
-## Supported Devices
+Example output:
 
-This integration supports OBD2 BLE dongles that advertise as:
+```
+GM Ultium / BrightDrop
+----------------------
+SOC                    67.46 %
+Energy remaining       116.58 kWh
+Estimated capacity     172.8 kWh
+Pack voltage           312.35 V
+Pack current           0.90 A (positive = discharge)
+Battery power          -0.28 kW (idle)
+Cell voltage (a/m/M)   3.9035 V / 3.9014 V / 3.9043 V
+Module temp (min/max)  24.5 / 25.0 C
+Range                  205.0 mi / 330.0 km
+Charge state           idle (0x00)
+12 V rail              13.6 V
+```
 
-- `OBD2`
-- `OBDII`
+## Home Assistant installation
 
-Supported BLE service UUIDs:
+The component is laid out as a HACS custom integration:
 
-- `0000ffe0-0000-1000-8000-00805f9b34fb`
-- `0000fff0-0000-1000-8000-00805f9b34fb`
-- `000018f0-0000-1000-8000-00805f9b34fb`
+```text
+custom_components/gm_ultium/
+tools/gm_ultium_cli.py
+tests/
+```
 
-## Troubleshooting
+1. Create a GitHub repository for this fork and replace `your-github-user` in
+   `custom_components/gm_ultium/manifest.json`.
+2. Add the repository to HACS as a custom integration repository.
+3. Install **GM Ultium**, restart Home Assistant, and add the integration.
+4. Select the VEEPEAK device (or enter its MAC address).
 
-- Ensure your OBD2 BLE device is in range and Bluetooth is enabled.
-- Check Home Assistant logs for detailed error messages.
-- Verify the device appears in Home Assistant Bluetooth discovery.
+The integration discovers `VEEPEAK*` advertisements and defaults the write
+characteristic to `FFF2`. The entity layer (SOC, remaining charge, estimated
+capacity, signed power, charging, cell voltages, range, 12 V) is being built on
+top of the validated command set.
 
-## Support
+## Power and sleep behavior
 
-For issues and feature requests, please visit the [GitHub repository](https://github.com/dala318/obd2_ble/issues)
+The OBD-II port is permanently powered on these vehicles. The dongle itself
+draws only a few tens of milliamps, but polling can keep the vehicle's gateway
+and BEC awake, which costs far more. The integration therefore needs a
+sleep/wake strategy, not just a fixed poll interval:
+
+- fast polling while charging or ignition-on,
+- slow polling while parked,
+- deep sleep with a cheap `ATRV` probe when the vehicle stops answering,
+- a 12 V guard that stops vehicle queries below a safe threshold.
+
+The exact thresholds need measurement on the vehicle; the CLI is the tool for
+collecting that data.
+
+## Safety
+
+- Read-only: the integration only uses OBD services `01`, `09`, and `22`.
+- No DTC clearing, routines, actuator tests, or writes.
+- Do not send arbitrary Mode 22 DIDs without checking the service semantics.
+
+## Development
+
+```bash
+# decoder tests (no vehicle needed)
+.venv/bin/python -m pytest -q -o addopts="" tests/
+
+# live protocol validation
+.venv/bin/python tools/gm_ultium_cli.py
+```
+
+## Attribution and license
+
+MIT. See [LICENSE](LICENSE).
+
+Based on [dala318/obd2_ble](https://github.com/dala318/obd2_ble),
+copyright (c) 2026 DanielV. The upstream project supplies the BLE transport,
+config flow, coordinator, and HACS structure.

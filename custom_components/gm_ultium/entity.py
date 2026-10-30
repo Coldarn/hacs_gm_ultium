@@ -12,7 +12,7 @@ _LOGGER = logging.getLogger(__name__)
 
 
 class ObdBleEntity(CoordinatorEntity[Obd2BleDataUpdateCoordinator]):
-    """Config entry for obd2_ble."""
+    """Config entry for gm_ultium."""
 
     def __init__(self, coordinator: Obd2BleDataUpdateCoordinator, config_entry, command: obdii.Command, domain) -> None:
         """Initialise."""

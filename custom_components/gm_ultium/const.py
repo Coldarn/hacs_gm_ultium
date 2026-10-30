@@ -1,15 +1,19 @@
-"""Constants for OBD2 BLE."""
+"""Constants for the GM Ultium integration.
+
+This integration is derived from dala318/obd2_ble (MIT). See README.md for
+attribution and the upstream project link.
+"""
 
 # Base component constants
 from typing import Final
 
 from homeassistant.const import Platform
 
-NAME = "OBD2 BLE"
-DOMAIN = "obd2_ble"
+NAME = "GM Ultium"
+DOMAIN = "gm_ultium"
 DOMAIN_DATA = f"{DOMAIN}_data"
 
-ATTRIBUTION = "Data provided by http://jsonplaceholder.typicode.com/"
+ATTRIBUTION = "Based on dala318/obd2_ble (MIT)"
 ISSUE_URL = "https://github.com/dala318/obd2_ble/issues"
 
 # Platforms
@@ -40,7 +44,7 @@ CONF_STATE_CLASS = "state_class"
 # Defaults
 DEFAULT_NAME = DOMAIN
 DEFAULT_CHARACTERISTIC_UUID_READ = "0000fff1-0000-1000-8000-00805f9b34fb"
-DEFAULT_CHARACTERISTIC_UUID_WRITE = "0000fff1-0000-1000-8000-00805f9b34fb"
+DEFAULT_CHARACTERISTIC_UUID_WRITE = "0000fff2-0000-1000-8000-00805f9b34fb"
 DEFAULT_CACHED_VALUES = False
 # when the device is in range, and the car is on, poll quickly
 DEFAULT_FAST_POLL = 10

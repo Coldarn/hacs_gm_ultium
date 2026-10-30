@@ -1,4 +1,4 @@
-"""Sensor platform for OBD2 BLE."""
+"""Sensor platform for GM Ultium."""
 
 import logging
 # from typing import Any
