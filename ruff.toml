@@ -1,0 +1,19 @@
+target-version = "py312"
+line-length = 120
+
+[lint.per-file-ignores]
+# Imported upstream transport/coordinator code. These are pre-existing patterns
+# that are intentional around BLE cleanup and optional OBD responses.
+"custom_components/gm_ultium/coordinator.py" = ["BLE001", "SIM102"]
+"custom_components/gm_ultium/obdii/transport_ble.py" = [
+  "UP006",
+  "UP035",
+  "UP045",
+  "FURB192",
+  "S110",
+  "BLE001",
+  "PYI034",
+]
+"custom_components/gm_ultium/obdii/transport_ble_identifiers.py" = ["SIM102"]
+"custom_components/gm_ultium/sensor.py" = ["BLE001", "RUF010"]
+"tools/*" = ["S110", "BLE001", "UP017"]

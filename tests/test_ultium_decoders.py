@@ -1,14 +1,14 @@
 """Decoder tests using real responses captured from a 2024 BrightDrop."""
 
-from pathlib import Path
 import sys
+from pathlib import Path
 
 import pytest
 
 COMPONENT = Path(__file__).resolve().parents[1] / "custom_components" / "gm_ultium"
 sys.path.insert(0, str(COMPONENT / "obdii"))
 
-import ultium_commands as uc  # noqa: E402
+import ultium_commands as uc
 
 
 def test_command_names_and_headers():

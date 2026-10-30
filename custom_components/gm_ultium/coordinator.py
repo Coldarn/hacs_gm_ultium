@@ -1,14 +1,10 @@
 """Coordinator for GM Ultium."""
 
-from datetime import timedelta
 import logging
+from datetime import timedelta
 from typing import Any
 
 from bleak.backends.device import BLEDevice
-
-from obdii import Command, Connection, Protocol, Response, at_commands, commands as veh_commands, __version__ as obdii_version
-from obdii.basetypes import MISSING
-
 from homeassistant.components import bluetooth
 from homeassistant.components.bluetooth.api import async_address_present
 from homeassistant.components.bluetooth.const import DOMAIN as BLUETOOTH_DOMAIN
@@ -17,26 +13,31 @@ from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConditionError
 from homeassistant.helpers.device_registry import CONNECTION_BLUETOOTH, DeviceInfo
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
+from obdii import Command, Connection, Protocol, Response, at_commands
+from obdii import __version__ as obdii_version
+from obdii import commands as veh_commands
+from obdii.basetypes import MISSING
 
 from .const import (
     CONF_CACHED_VALUES,
+    CONF_CHARACTERISTIC_UUID_READ,
+    CONF_CHARACTERISTIC_UUID_WRITE,
     CONF_FAST_POLL,
     CONF_HW_VERSION,
     CONF_MEASUREMENT_MODE,
+    CONF_PROTOCOL,
     CONF_SLOW_POLL,
     CONF_XS_POLL,
-    CONF_CHARACTERISTIC_UUID_READ,
-    CONF_CHARACTERISTIC_UUID_WRITE,
-    CONF_PROTOCOL,
-    DOMAIN,
-    DEFAULT_FAST_POLL,
-    DEFAULT_SLOW_POLL,
-    DEFAULT_XS_POLL,
     DEFAULT_CACHED_VALUES,
     DEFAULT_CHARACTERISTIC_UUID_READ,
     DEFAULT_CHARACTERISTIC_UUID_WRITE,
+    DEFAULT_FAST_POLL,
+    DEFAULT_SLOW_POLL,
+    DEFAULT_XS_POLL,
+    DOMAIN,
 )
 from .obdii.transport_ble import TransportBLE
+
 try:
     from .debug import FAKE_COMMANDS
 except ImportError:

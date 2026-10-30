@@ -4,61 +4,67 @@ import logging
 from typing import Any
 
 try:
-    from bluetooth_data_tools import human_readable_name # type: ignore
+    from bluetooth_data_tools import human_readable_name  # type: ignore
 except ImportError:  # pragma: no cover - fallback for missing dependency
     def human_readable_name(_manufacturer: str | None, name: str | None, address: str):
         """Fallback if bluetooth_data_tools is unavailable."""
         return name or address
 from dataclasses import dataclass
+
 import voluptuous as vol
-
-from bleak.backends.device import BLEDevice
 from bleak.backends.characteristic import BleakGATTCharacteristic
-
-from obdii import Command, commands as veh_commands
-from obdii.protocol import Protocol
-
+from bleak.backends.device import BLEDevice
 from homeassistant import config_entries
 from homeassistant.components.bluetooth import (
     BluetoothServiceInfoBleak,
     async_ble_device_from_address,
     async_discovered_service_info,
 )
+from homeassistant.components.sensor import SensorDeviceClass, SensorStateClass
 from homeassistant.const import CONF_ADDRESS
 from homeassistant.core import callback
 from homeassistant.helpers import device_registry, selector
-from homeassistant.components.sensor import SensorDeviceClass, SensorStateClass
+from obdii import Command
+from obdii import commands as veh_commands
+from obdii.protocol import Protocol
 
 from . import Obd2BleConfigEntry
 from .const import (
-    DOMAIN,
     CONF_AUTO_CONFIGURE,
-    CONF_MEASUREMENT_MODE,
+    CONF_CACHED_VALUES,
     CONF_CHARACTERISTIC_UUID_READ,
     CONF_CHARACTERISTIC_UUID_WRITE,
-    CONF_PROTOCOL,
-    DEFAULT_CHARACTERISTIC_UUID_READ,
-    DEFAULT_CHARACTERISTIC_UUID_WRITE,
-
-    CONF_CACHED_VALUES,
+    CONF_COMMAND,
+    CONF_COMMANDS,
+    CONF_DEVICE_CLASS,
     CONF_FAST_POLL,
+    CONF_ICON,
+    CONF_MEASUREMENT_MODE,
+    CONF_PROTOCOL,
     CONF_SLOW_POLL,
+    CONF_STATE_CLASS,
+    CONF_UNIT,
     CONF_XS_POLL,
     DEFAULT_CACHED_VALUES,
+    DEFAULT_CHARACTERISTIC_UUID_READ,
+    DEFAULT_CHARACTERISTIC_UUID_WRITE,
     DEFAULT_FAST_POLL,
     DEFAULT_SLOW_POLL,
     DEFAULT_XS_POLL,
-
-    CONF_COMMANDS,
-    CONF_COMMAND,
-    CONF_ICON,
-    CONF_UNIT,
-    CONF_DEVICE_CLASS,
-    CONF_STATE_CLASS,
+    DOMAIN,
 )
 from .obdii.transport_ble import TransportBLE
-from .obdii.transport_ble_identifiers import AVAILABLE_OBD2_CLASSES, BaseOBD2, advertisement_matches
-from .sensor import get_list_of_units, propose_icon_from_command, propose_sensor_device_class, propose_sensor_state_class
+from .obdii.transport_ble_identifiers import (
+    AVAILABLE_OBD2_CLASSES,
+    BaseOBD2,
+    advertisement_matches,
+)
+from .sensor import (
+    get_list_of_units,
+    propose_icon_from_command,
+    propose_sensor_device_class,
+    propose_sensor_state_class,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -112,7 +118,7 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     ) -> type[BaseOBD2] | None:
         """Check if device is supported by an available OBD2 BLE class."""
         for obd2_class in AVAILABLE_OBD2_CLASSES:
-            if all([advertisement_matches(matcher, discovery_info.advertisement, discovery_info.address) for matcher in obd2_class.matcher_dict_list()]):
+            if all(advertisement_matches(matcher, discovery_info.advertisement, discovery_info.address) for matcher in obd2_class.matcher_dict_list()):
                 _LOGGER.debug(
                     "Device %s (%s) detected as '%s'",
                     discovery_info.name,
@@ -397,7 +403,7 @@ class Obd2BleOptionsFlowHandler(_OPTIONS_FLOW_BASE):
 
         _, commands = await self.config_entry.runtime_data.async_get_all_pid_commands(force_refresh=True)
         if pre_configured := self._options.get(CONF_COMMANDS):
-            commands = list(set(commands) | set([veh_commands[cmd[CONF_COMMAND]] for cmd in pre_configured]))
+            commands = list(set(commands) | {veh_commands[cmd[CONF_COMMAND]] for cmd in pre_configured})
         commands = sorted(commands, key=lambda cmd: (cmd.name, cmd.mode, cmd.pid))
 
         return self.async_show_form(

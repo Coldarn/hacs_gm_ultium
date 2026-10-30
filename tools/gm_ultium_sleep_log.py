@@ -51,12 +51,11 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "custom_components" / "gm_ultium" / "obdii"))
 
-from bleak import BleakScanner  # noqa: E402
-from obdii import Connection, at_commands  # noqa: E402
-from obdii.protocol import Protocol  # noqa: E402
-
-import ultium_commands as uc  # noqa: E402
-from transport_ble import TransportBLE  # noqa: E402
+import ultium_commands as uc
+from bleak import BleakScanner
+from obdii import Connection, at_commands
+from obdii.protocol import Protocol
+from transport_ble import TransportBLE
 
 logging.getLogger("obdii").setLevel(logging.WARNING)
 logging.getLogger("obdii").propagate = False

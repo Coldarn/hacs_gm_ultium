@@ -1,10 +1,9 @@
 """Sensor platform for GM Ultium."""
 
 import logging
+
 # from typing import Any
 from collections.abc import Iterable
-
-from obdii import Command, Response, commands as veh_commands
 
 from homeassistant.components.sensor import (
     SensorDeviceClass,
@@ -15,17 +14,19 @@ from homeassistant.components.sensor import (
 from homeassistant.const import CONF_ADDRESS, EntityCategory
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry
+from obdii import Command, Response
+from obdii import commands as veh_commands
 
 from . import Obd2BleConfigEntry
 from .const import (
     CONF_COMMANDS,
-    CONF_ICON,
-    CONF_UNIT,
     CONF_DEVICE_CLASS,
-    CONF_STATE_CLASS,
+    CONF_ICON,
     CONF_MEASUREMENT_MODE,
+    CONF_STATE_CLASS,
+    CONF_UNIT,
     DOMAIN,
-    ICON_KEYWORDS
+    ICON_KEYWORDS,
 )
 from .coordinator import Obd2BleDataUpdateCoordinator
 from .entity import ObdBleEntity

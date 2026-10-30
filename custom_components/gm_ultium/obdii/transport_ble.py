@@ -1,19 +1,17 @@
 import asyncio
 import logging
+from threading import Event, Lock
+from time import monotonic
+from typing import Any, Coroutine, Dict, Optional
 
 from bleak import BleakClient
-from bleak.exc import BleakError
 from bleak.backends.characteristic import BleakGATTCharacteristic
 from bleak.backends.device import BLEDevice
 from bleak.backends.service import BleakGATTServiceCollection
-from bleak_retry_connector import establish_connection, BleakClientWithServiceCache
-
-from threading import Lock, Event
-from time import monotonic
-from typing import Optional, Dict, Any, Coroutine
-
-from obdii.transports.transport_base import TransportBase
+from bleak.exc import BleakError
+from bleak_retry_connector import BleakClientWithServiceCache, establish_connection
 from obdii.basetypes import MISSING
+from obdii.transports.transport_base import TransportBase
 
 _LOGGER: logging.Logger = logging.getLogger(__package__)
 

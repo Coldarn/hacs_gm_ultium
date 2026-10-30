@@ -1,23 +1,21 @@
 """Binary sensor platform for GM Ultium."""
 
 import logging
-from typing import Callable
+from collections.abc import Callable
+
 # from typing import Any
 # from collections.abc import Iterable
-
 # from obdii import Command, Response, commands as veh_commands
-
 from homeassistant.components.binary_sensor import (
+    BinarySensorDeviceClass,
     BinarySensorEntity,
     BinarySensorEntityDescription,
-    BinarySensorDeviceClass,
 )
-
 from homeassistant.const import CONF_ADDRESS, EntityCategory
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
-# from homeassistant.helpers import entity_registry
 
+# from homeassistant.helpers import entity_registry
 from . import Obd2BleConfigEntry
 from .const import (
     CONF_COMMANDS,
@@ -27,6 +25,7 @@ from .const import (
     # CONF_STATE_CLASS,
 )
 from .coordinator import Obd2BleDataUpdateCoordinator
+
 # from .entity import ObdBleEntity
 
 _LOGGER = logging.getLogger(__name__)
@@ -183,8 +182,8 @@ class ObdBleStatusBinarySensor(CoordinatorEntity[Obd2BleDataUpdateCoordinator], 
         try:
             self._attr_is_on = self._config.function()
             _LOGGER.debug("Updating sensor %s with data: %s", str(self._config.function.__name__), self._attr_is_on)
-        except Exception as ex:
-            _LOGGER.error(f"Error updating sensor {str(self._config.function.__name__)}: {ex}")
+        except Exception as ex:  # noqa: BLE001
+            _LOGGER.error(f"Error updating sensor {self._config.function.__name__!s}: {ex!s}")
             self._attr_available = False
         else:
             self._attr_available = True

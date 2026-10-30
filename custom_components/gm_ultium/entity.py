@@ -2,9 +2,9 @@
 
 import logging
 
+import obdii
 from homeassistant.const import CONF_ADDRESS
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
-import obdii
 
 from .coordinator import Obd2BleDataUpdateCoordinator
 

@@ -16,13 +16,12 @@ import csv
 import json
 import logging
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
 from homeassistant.components import bluetooth
 from homeassistant.core import HomeAssistant
-
 from obdii import Connection, at_commands
 from obdii.protocol import Protocol
 
@@ -64,7 +63,7 @@ FIELDS = [
 
 
 def utcnow() -> str:
-    return datetime.now(timezone.utc).isoformat(timespec="seconds")
+    return datetime.now(UTC).isoformat(timespec="seconds")
 
 
 def parse_atrv(value: Any) -> float | None:
@@ -113,7 +112,7 @@ def close_api(api: Connection | None) -> None:
     try:
         api.close()
     except Exception:
-        pass
+        _LOGGER.debug("Error closing API", exc_info=True)
 
 
 def set_header(api: Connection, header: str) -> bool:
@@ -131,7 +130,7 @@ def _query(api: Connection, command: Any, label: str, errors: list[str]) -> Any:
     except TimeoutError:
         errors.append(f"{label}:timeout")
         raise
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001
         errors.append(f"{label}:{type(exc).__name__}")
         return None
 
@@ -461,7 +460,7 @@ class SleepLogger:
                     )
                     record["poll_ms"] = round((time.monotonic() - poll_start) * 1000)
                     merge_record(record, fragment)
-                except Exception as exc:
+                except Exception as exc:  # noqa: BLE001
                     record["connected"] = False
                     if connect_start is not None and record["connect_ms"] == 0:
                         record["connect_ms"] = round(
