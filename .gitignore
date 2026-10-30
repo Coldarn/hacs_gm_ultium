@@ -221,3 +221,6 @@ __marimo__/
 
 # Local sleep/power measurements
 logs/
+
+# Local experimental tools (not part of the published integration)
+tools/gm_ultium_live.py
