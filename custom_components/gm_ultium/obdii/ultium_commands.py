@@ -141,7 +141,13 @@ class GMUltiumCommands(GroupCommands):
     """High-voltage pack voltage."""
 
     PACK_CURRENT = Command(0x22, "2414", 2, -1000, 1000, "A", _signed_word_div20)
-    """Pack current; positive discharges, negative charges."""
+    """Pack current; positive discharges, negative charges.
+
+    The scaling is 0.05 A per raw count, but the DMCM current sensor behaves
+    like a 12-bit measurement over a wide range, so live values move in ~0.3 A
+    steps (~0.09 kW at 320 V). This is the validated pack-current DID; the
+    coarse low-current resolution is in the sensor, not the decoder.
+    """
 
     LOW_VOLTAGE = Command(0x22, "33E5", 1, 0, 25, "V", Formula("A/10"))
     """12 V rail."""
