@@ -204,11 +204,28 @@ class ChargingBinarySensor(
         charge_state = self._value("CHARGE_STATE")
         voltage = self._value("PACK_VOLTAGE")
         current = self._value("PACK_CURRENT")
+        power = (
+            -(voltage * current) / 1000.0
+            if voltage is not None and current is not None
+            else None
+        )
+
+        command = ULTIUM_COMMANDS_BY_NAME["CHARGE_STATE"]
+        response = (self.coordinator.data or {}).get(str(command))
+        raw = response.unparsed[0] if response and response.unparsed else None
+
+        self._attr_extra_state_attributes = {
+            "charge_state": charge_state,
+            "charge_state_raw": raw,
+            "pack_voltage_v": voltage,
+            "pack_current_a": current,
+            "battery_power_kw": power,
+        }
+
         if charge_state is not None:
             self._attr_is_on = charge_state == "charging"
             self._attr_available = True
-        elif voltage is not None and current is not None:
-            power = -(voltage * current) / 1000.0
+        elif power is not None and current is not None:
             self._attr_is_on = power > 0.1 or current < -0.5
             self._attr_available = True
         else:
