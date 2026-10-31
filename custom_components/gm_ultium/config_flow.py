@@ -1,6 +1,7 @@
 """Adds config flow for GM Ultium."""
 
 import logging
+import re
 from typing import Any
 
 try:
@@ -205,7 +206,20 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 self._discovered_devices[discovery.address] = discovery
 
         if not self._discovered_devices:
-            return self.async_abort(reason="no_unconfigured_devices")
+            cached = list(async_discovered_service_info(self.hass))
+            _LOGGER.warning(
+                "No supported GM Ultium BLE device found. "
+                "Home Assistant Bluetooth cache contains %d device(s).",
+                len(cached),
+            )
+            _LOGGER.debug(
+                "Bluetooth cache: %s",
+                [
+                    (device.name, device.address, device.advertisement.service_uuids)
+                    for device in cached
+                ],
+            )
+            return await self.async_step_manual()
 
         data_schema = vol.Schema(
             {
@@ -224,6 +238,32 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         return self.async_show_form(
             step_id="user",
             data_schema=data_schema,
+            errors=errors,
+        )
+
+    async def async_step_manual(
+        self, user_input: dict[str, Any] | None = None
+    ) -> config_entries.ConfigFlowResult:
+        """Manual address fallback when Bluetooth discovery finds nothing."""
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            address = user_input[CONF_ADDRESS].strip().upper()
+            if not re.fullmatch(r"([0-9A-F]{2}:){5}[0-9A-F]{2}", address):
+                errors["base"] = "invalid_address"
+            else:
+                await self.async_set_unique_id(address, raise_on_progress=False)
+                self._abort_if_unique_id_configured()
+                return self.async_create_entry(
+                    title=f"GM Ultium ({address})",
+                    data={
+                        CONF_ADDRESS: address,
+                        CONF_MEASUREMENT_MODE: True,
+                    },
+                )
+
+        return self.async_show_form(
+            step_id="manual",
+            data_schema=vol.Schema({vol.Required(CONF_ADDRESS): str}),
             errors=errors,
         )
 

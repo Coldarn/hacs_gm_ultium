@@ -16,6 +16,13 @@
           "measurement_mode": "Measurement mode (sleep/power logging; disables normal polling)"
         }
       },
+      "manual": {
+        "title": "Enter dongle address",
+        "description": "No supported device was discovered. Enter the BLE MAC address of the VEEPEAK (for example 66:1E:87:05:B3:41). This creates a measurement-mode entry; the dongle must still be advertising for the logger to connect.",
+        "data": {
+          "address": "Bluetooth address"
+        }
+      },
       "connection": {
         "title": "Configure Connection",
         "description": "Set up the Bluetooth connection parameters for your OBD-II device.",
@@ -36,7 +43,8 @@
     },
     "error": {
       "missing_unique_id": "Critical connection error: The configuration entry lacks a valid unique Bluetooth MAC address identifier.",
-      "device_not_found": "Could not establish an over-the-air link to the device with MAC address {mac}. Verify it is powered and in range."
+      "device_not_found": "Could not establish an over-the-air link to the device with MAC address {mac}. Verify it is powered and in range.",
+      "invalid_address": "Enter a MAC address in the form AA:BB:CC:DD:EE:FF."
     }
   },
   "options": {
