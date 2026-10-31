@@ -78,6 +78,7 @@ class Obd2BleDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Response]]):
         self.api: Connection | None = None
         self.active_commands: set[Command] = set()
         self._active_can_header: str | None = None
+        self._force_next_update = False
 
         if not entry or not entry.unique_id:
             raise ConditionError("No unique_id found in config entry")
@@ -139,6 +140,13 @@ class Obd2BleDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Response]]):
             self.api = None
             self.transport = None
             cause = err.__cause__
+            _LOGGER.error(
+                "OBD2 connect failed: %s: %r (cause=%s: %r)",
+                type(err).__name__,
+                err,
+                type(cause).__name__ if cause else None,
+                cause,
+            )
             if isinstance(cause, BleakOutOfConnectionSlotsError) or (
                 "connection slot" in str(err).lower()
             ):
@@ -146,7 +154,12 @@ class Obd2BleDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Response]]):
                     "No free Bluetooth connection slot for the dongle. Close "
                     "other BLE integrations/apps or add a Bluetooth proxy."
                 ) from err
-            raise UpdateFailed(f"Error connecting to OBD2: {err}") from err
+            detail = (
+                f"{type(cause).__name__}: {cause!r}"
+                if cause
+                else f"{type(err).__name__}: {err!r}"
+            )
+            raise UpdateFailed(f"Error connecting to OBD2: {detail}") from err
 
         if hw_version is not None:
             entry_data[CONF_HW_VERSION] = hw_version.value if hw_version else None
@@ -204,6 +217,9 @@ class Obd2BleDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Response]]):
 
         if self.measurement_mode:
             return {}
+
+        force = force or self._force_next_update
+        self._force_next_update = False
 
         if not self.config_entry or not self.config_entry.unique_id:
             _LOGGER.error("No config entry available for coordinator")
@@ -325,12 +341,15 @@ class Obd2BleDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Response]]):
         return self._last_fetch_successful and self.ble_connected()
 
     async def async_force_update(self) -> bool:
-        """Force an update of the coordinator data by calling the update method directly."""
+        """Force a real refresh, update entities, and return the outcome."""
+        self._force_next_update = True
         try:
-            await self._async_update_data(force=True)
-            if self.car_connected():
+            await self.async_refresh()
+            if self.last_update_success and self.car_connected():
                 _LOGGER.info("Successfully connected to the car during forced update")
                 return True
+            if self.last_exception:
+                _LOGGER.error("Forced update failed: %r", self.last_exception)
         except Exception as err:
-            _LOGGER.error(f"Error during forced update: {err}")
+            _LOGGER.error("Forced update failed: %r", err)
         return False

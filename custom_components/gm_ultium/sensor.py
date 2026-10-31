@@ -48,7 +48,6 @@ COMMAND_METADATA: dict[str, dict] = {
         "icon": "mdi:battery-charging",
         "unit": "kWh",
         "device_class": SensorDeviceClass.ENERGY,
-        "state_class": SensorStateClass.MEASUREMENT,
     },
     "PACK_VOLTAGE": {
         "name": "Pack voltage",
@@ -355,7 +354,6 @@ class EstimatedCapacitySensor(_DerivedUltiumSensor):
     _attr_name = "Estimated capacity"
     _attr_native_unit_of_measurement = "kWh"
     _attr_device_class = SensorDeviceClass.ENERGY
-    _attr_state_class = SensorStateClass.MEASUREMENT
     _attr_icon = "mdi:battery-high"
 
     def __init__(

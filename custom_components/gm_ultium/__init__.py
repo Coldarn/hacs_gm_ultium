@@ -194,7 +194,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: Obd2BleConfigEntry) -> b
 
         try:
             connected_successfully = await coordinator.async_force_update()
-            return {"connected": bool(connected_successfully)}
+            return {
+                "connected": bool(connected_successfully),
+                "error": str(coordinator.last_exception)
+                if coordinator.last_exception
+                else None,
+            }
         except Exception as err:  # noqa: BLE001
             raise ServiceValidationError(
                 f"Communication failed while targeting the OBD2 device: {err}"
