@@ -18,9 +18,15 @@ def test_command_names_and_headers():
 
 
 def test_soc_high_resolution():
-    # 27C6 -> AC B2 during the 2026-10-30 validation run
+    # 27C6 -> AC B2; raw 67.460... is rounded to 3 significant figures.
     value = uc.GMUltiumCommands.STATE_OF_CHARGE.resolver([0xAC, 0xB2])
-    assert value == pytest.approx(67.46, abs=0.01)
+    assert value == pytest.approx(67.5, abs=0.01)
+
+
+def test_soc_rounds_to_three_significant_figures():
+    assert uc._sig_figs(66.9611657892729, 3) == pytest.approx(67.0)
+    assert uc._sig_figs(67.46063172350652, 3) == pytest.approx(67.5)
+    assert uc._sig_figs(6.69611657892729, 3) == pytest.approx(6.7)
 
 
 def test_energy_remaining():

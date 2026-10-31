@@ -11,12 +11,27 @@ the 29-bit CAN priority.
 from __future__ import annotations
 
 from collections.abc import Iterable
+from math import floor, log10
 from typing import Any
 
 from obdii import Command
 from obdii import commands as veh_commands
 from obdii.modes.group_commands import GroupCommands
 from obdii.parsers.formula import Formula
+
+_SOC_FORMULA = Formula("(A*256+B)*100/65535")
+
+
+def _sig_figs(value: float | None, digits: int = 3) -> float | None:
+    """Round to a fixed number of significant figures."""
+    if value is None or value == 0:
+        return value
+    return round(value, digits - 1 - floor(log10(abs(value))))
+
+
+def _soc(value: Any) -> float | None:
+    return _sig_figs(_SOC_FORMULA(value), 3)
+
 
 BEC_HEADER = "DACBF1"    # 18 DA CB F1 — Battery Energy Control
 DMCM_HEADER = "DA17F1"   # 18 DA 17 F1 — Drive Motor Control Module
@@ -105,9 +120,7 @@ def _u8(value: Any) -> int | None:
 class GMUltiumCommands(GroupCommands):
     """Validated Ultium signals exposed as individual py-obdii commands."""
 
-    STATE_OF_CHARGE = Command(
-        0x22, "27C6", 2, 0, 100, "%", Formula("(A*256+B)*100/65535")
-    )
+    STATE_OF_CHARGE = Command(0x22, "27C6", 2, 0, 100, "%", _soc)
     """High-resolution pack state of charge (dashboard-consistent)."""
 
     ENERGY_REMAINING = Command(

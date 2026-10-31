@@ -127,6 +127,21 @@ COMMAND_METADATA: dict[str, dict] = {
 }
 
 
+DISPLAY_PRECISION: dict[str, int] = {
+    "STATE_OF_CHARGE": 1,
+    "ENERGY_REMAINING": 2,
+    "PACK_VOLTAGE": 2,
+    "PACK_CURRENT": 2,
+    "CELL_VOLTAGE_AVG": 4,
+    "CELL_VOLTAGE_MIN": 4,
+    "CELL_VOLTAGE_MAX": 4,
+    "MODULE_TEMP_MIN": 1,
+    "MODULE_TEMP_MAX": 1,
+    "RANGE_MILES": 1,
+    "LOW_VOLTAGE": 1,
+}
+
+
 def propose_icon_from_command(command: Command) -> str:
     """Propose an mdi icon string by checking token suffixes backwards."""
     tokens = command.name.lower().split("_")
@@ -250,6 +265,9 @@ async def async_setup_entry(
                     state_class=command_config.get(CONF_STATE_CLASS)
                     or meta.get("state_class"),
                     entity_category=meta.get("entity_category"),
+                    suggested_display_precision=DISPLAY_PRECISION.get(
+                        command.name
+                    ),
                 )
             )
 
@@ -344,6 +362,7 @@ class BatteryPowerSensor(_DerivedUltiumSensor):
     _attr_device_class = SensorDeviceClass.POWER
     _attr_state_class = SensorStateClass.MEASUREMENT
     _attr_icon = "mdi:battery-charging"
+    _attr_suggested_display_precision = 2
 
     def __init__(
         self,
@@ -372,6 +391,7 @@ class EstimatedCapacitySensor(_DerivedUltiumSensor):
     _attr_native_unit_of_measurement = "kWh"
     _attr_device_class = SensorDeviceClass.ENERGY
     _attr_icon = "mdi:battery-high"
+    _attr_suggested_display_precision = 1
 
     def __init__(
         self,
@@ -422,6 +442,7 @@ class CellVoltageMinSensor(_RawUltiumSensor):
     _attr_state_class = SensorStateClass.MEASUREMENT
     _attr_icon = "mdi:battery-heart-variant"
     _attr_entity_category = EntityCategory.DIAGNOSTIC
+    _attr_suggested_display_precision = 4
 
     def __init__(self, coordinator, entry) -> None:
         super().__init__(coordinator, entry, "Cell voltage minimum", "cell-voltage-min")
@@ -445,6 +466,7 @@ class CellVoltageMaxSensor(_RawUltiumSensor):
     _attr_state_class = SensorStateClass.MEASUREMENT
     _attr_icon = "mdi:battery-heart-variant"
     _attr_entity_category = EntityCategory.DIAGNOSTIC
+    _attr_suggested_display_precision = 4
 
     def __init__(self, coordinator, entry) -> None:
         super().__init__(coordinator, entry, "Cell voltage maximum", "cell-voltage-max")
@@ -468,6 +490,7 @@ class ModuleTempMaxSensor(_RawUltiumSensor):
     _attr_state_class = SensorStateClass.MEASUREMENT
     _attr_icon = "mdi:thermometer"
     _attr_entity_category = EntityCategory.DIAGNOSTIC
+    _attr_suggested_display_precision = 1
 
     def __init__(self, coordinator, entry) -> None:
         super().__init__(
