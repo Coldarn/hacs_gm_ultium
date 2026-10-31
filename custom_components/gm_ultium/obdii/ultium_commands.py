@@ -161,7 +161,18 @@ ULTIUM_COMMAND_NAMES = [command.name for command in ULTIUM_COMMANDS]
 # CHARGE_STATE is useful for diagnostics but is a raw enum. The charging
 # binary sensor derives its state from voltage/current instead.
 ULTIUM_DEFAULT_COMMAND_NAMES = [
-    name for name in ULTIUM_COMMAND_NAMES if name != "CHARGE_STATE"
+    name
+    for name in ULTIUM_COMMAND_NAMES
+    if name
+    not in {
+        "CHARGE_STATE",
+        # These share a DID with CELL_VOLTAGE_AVG / MODULE_TEMP_MIN. Querying
+        # the same DID multiple times makes the BEC time out; the missing
+        # values are derived from the single response instead.
+        "CELL_VOLTAGE_MIN",
+        "CELL_VOLTAGE_MAX",
+        "MODULE_TEMP_MAX",
+    }
 ]
 
 ULTIUM_COMMAND_CAN_HEADERS = {

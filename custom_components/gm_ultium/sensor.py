@@ -35,6 +35,12 @@ from .obdii.ultium_commands import ULTIUM_COMMANDS_BY_NAME, resolve_command
 
 _LOGGER = logging.getLogger(__name__)
 
+SKIP_DUPLICATE_COMMANDS = {
+    "CELL_VOLTAGE_MIN",
+    "CELL_VOLTAGE_MAX",
+    "MODULE_TEMP_MAX",
+}
+
 COMMAND_METADATA: dict[str, dict] = {
     "STATE_OF_CHARGE": {
         "name": "State of charge",
@@ -225,6 +231,12 @@ async def async_setup_entry(
                 command_config.get(CONF_COMMAND),
             )
         else:
+            if command.name in SKIP_DUPLICATE_COMMANDS:
+                _LOGGER.debug(
+                    "Skipping %s; its value is derived from the base DID response",
+                    command.name,
+                )
+                continue
             meta = COMMAND_METADATA.get(command.name, {})
             active_command_names.add(command.name)
             sensor_commands.append(
@@ -264,6 +276,11 @@ async def async_setup_entry(
         entities.append(BatteryPowerSensor(coordinator, entry))
     if {"ENERGY_REMAINING", "STATE_OF_CHARGE"} <= active_command_names:
         entities.append(EstimatedCapacitySensor(coordinator, entry))
+    if "CELL_VOLTAGE_AVG" in active_command_names:
+        entities.append(CellVoltageMinSensor(coordinator, entry))
+        entities.append(CellVoltageMaxSensor(coordinator, entry))
+    if "MODULE_TEMP_MIN" in active_command_names:
+        entities.append(ModuleTempMaxSensor(coordinator, entry))
     if entry.data.get(CONF_MEASUREMENT_MODE):
         entities.append(SleepLogStatusSensor(hass, coordinator, entry))
     async_add_entities(entities)
@@ -369,6 +386,99 @@ class EstimatedCapacitySensor(_DerivedUltiumSensor):
         soc = self._value("STATE_OF_CHARGE")
         if energy is not None and soc:
             self._attr_native_value = energy / (soc / 100.0)
+            self._attr_available = True
+        else:
+            self._attr_native_value = None
+            self._attr_available = False
+        super()._handle_coordinator_update()
+
+
+class _RawUltiumSensor(CoordinatorEntity[Obd2BleDataUpdateCoordinator], SensorEntity):
+    """Base for values decoded from a sibling command's raw response."""
+
+    def __init__(
+        self,
+        coordinator: Obd2BleDataUpdateCoordinator,
+        entry: Obd2BleConfigEntry,
+        name: str,
+        unique_suffix: str,
+    ) -> None:
+        super().__init__(coordinator)
+        self._attr_device_info = coordinator.device_info
+        self._attr_name = name
+        self._attr_unique_id = f"{entry.data[CONF_ADDRESS]}-{unique_suffix}"
+
+    def _raw(self, command_name: str):
+        command = ULTIUM_COMMANDS_BY_NAME[command_name]
+        response = (self.coordinator.data or {}).get(str(command))
+        return response.unparsed if response is not None else None
+
+
+class CellVoltageMinSensor(_RawUltiumSensor):
+    """Minimum cell voltage, decoded from the 2AF5 response."""
+
+    _attr_native_unit_of_measurement = "V"
+    _attr_device_class = SensorDeviceClass.VOLTAGE
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_icon = "mdi:battery-heart-variant"
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+
+    def __init__(self, coordinator, entry) -> None:
+        super().__init__(coordinator, entry, "Cell voltage minimum", "cell-voltage-min")
+
+    def _handle_coordinator_update(self) -> None:
+        raw = self._raw("CELL_VOLTAGE_AVG")
+        if raw and len(raw) >= 4:
+            self._attr_native_value = ((raw[2] << 8) | raw[3]) / 10000
+            self._attr_available = True
+        else:
+            self._attr_native_value = None
+            self._attr_available = False
+        super()._handle_coordinator_update()
+
+
+class CellVoltageMaxSensor(_RawUltiumSensor):
+    """Maximum cell voltage, decoded from the 2AF5 response."""
+
+    _attr_native_unit_of_measurement = "V"
+    _attr_device_class = SensorDeviceClass.VOLTAGE
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_icon = "mdi:battery-heart-variant"
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+
+    def __init__(self, coordinator, entry) -> None:
+        super().__init__(coordinator, entry, "Cell voltage maximum", "cell-voltage-max")
+
+    def _handle_coordinator_update(self) -> None:
+        raw = self._raw("CELL_VOLTAGE_AVG")
+        if raw and len(raw) >= 6:
+            self._attr_native_value = ((raw[4] << 8) | raw[5]) / 10000
+            self._attr_available = True
+        else:
+            self._attr_native_value = None
+            self._attr_available = False
+        super()._handle_coordinator_update()
+
+
+class ModuleTempMaxSensor(_RawUltiumSensor):
+    """Maximum module temperature, decoded from the 2AF1 response."""
+
+    _attr_native_unit_of_measurement = "°C"
+    _attr_device_class = SensorDeviceClass.TEMPERATURE
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_icon = "mdi:thermometer"
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+
+    def __init__(self, coordinator, entry) -> None:
+        super().__init__(
+            coordinator, entry, "Module temperature maximum", "module-temp-max"
+        )
+
+    def _handle_coordinator_update(self) -> None:
+        raw = self._raw("MODULE_TEMP_MIN")
+        if raw and len(raw) >= 3:
+            temps = [(byte - 40) / 2 for byte in raw[:12]]
+            self._attr_native_value = max(temps)
             self._attr_available = True
         else:
             self._attr_native_value = None
