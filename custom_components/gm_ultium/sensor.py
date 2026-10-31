@@ -49,6 +49,11 @@ COMMAND_METADATA: dict[str, dict] = {
         "device_class": SensorDeviceClass.BATTERY,
         "state_class": SensorStateClass.MEASUREMENT,
     },
+    "CHARGE_STATE": {
+        "name": "Charge state",
+        "icon": "mdi:ev-station",
+        "entity_category": EntityCategory.DIAGNOSTIC,
+    },
     "ENERGY_REMAINING": {
         "name": "Energy remaining",
         "icon": "mdi:battery-charging",

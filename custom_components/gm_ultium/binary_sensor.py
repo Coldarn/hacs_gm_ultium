@@ -192,12 +192,24 @@ class ChargingBinarySensor(
         response = (self.coordinator.data or {}).get(str(command))
         return response.value if response is not None else None
 
+    async def async_added_to_hass(self) -> None:
+        await super().async_added_to_hass()
+        # Poll the definitive BEC charge-state byte even if the user did not
+        # select it as a sensor in the options.
+        self.coordinator.active_commands.add(
+            ULTIUM_COMMANDS_BY_NAME["CHARGE_STATE"]
+        )
+
     def _handle_coordinator_update(self) -> None:
+        charge_state = self._value("CHARGE_STATE")
         voltage = self._value("PACK_VOLTAGE")
         current = self._value("PACK_CURRENT")
-        if voltage is not None and current is not None:
+        if charge_state is not None:
+            self._attr_is_on = charge_state == "charging"
+            self._attr_available = True
+        elif voltage is not None and current is not None:
             power = -(voltage * current) / 1000.0
-            self._attr_is_on = power > 0.5
+            self._attr_is_on = power > 0.1 or current < -0.5
             self._attr_available = True
         else:
             self._attr_is_on = None

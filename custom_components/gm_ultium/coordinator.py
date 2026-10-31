@@ -225,19 +225,30 @@ class Obd2BleDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Response]]):
             _LOGGER.error("No config entry available for coordinator")
             return {}
 
-        _LOGGER.debug("Check if the device is still available")
-        available = async_address_present(self.hass, self.config_entry.unique_id, connectable=True)
-        if not available and not force:
-            _LOGGER.debug("Car out of range? Switch to extra slow polling")
-            self.update_interval = timedelta(seconds=self.config_entry.options.get(CONF_XS_POLL, DEFAULT_XS_POLL))
-            _LOGGER.debug(
-                "Car out of range? Switch to ultra slow polling: interval = %s",
-                self.update_interval,
+        # While the dongle is connected it stops advertising, so the
+        # advertisement-presence check must only gate a *disconnected* link.
+        if self.api is None or not self.api.is_connected():
+            _LOGGER.debug("Check if the device is still available")
+            available = async_address_present(
+                self.hass, self.config_entry.unique_id, connectable=True
             )
-            if self.config_entry.options.get(CONF_CACHED_VALUES, DEFAULT_CACHED_VALUES):
-                return self._cache_data
-            return {}
-        
+            if not available and not force:
+                _LOGGER.debug("Car out of range? Switch to extra slow polling")
+                self.update_interval = timedelta(
+                    seconds=self.config_entry.options.get(
+                        CONF_XS_POLL, DEFAULT_XS_POLL
+                    )
+                )
+                _LOGGER.debug(
+                    "Car out of range? Switch to ultra slow polling: interval = %s",
+                    self.update_interval,
+                )
+                if self.config_entry.options.get(
+                    CONF_CACHED_VALUES, DEFAULT_CACHED_VALUES
+                ):
+                    return self._cache_data
+                return {}
+
         if self.api is None:
             if not await self._async_connect_ble():
                 raise UpdateFailed("Dongle not found in the Bluetooth cache")

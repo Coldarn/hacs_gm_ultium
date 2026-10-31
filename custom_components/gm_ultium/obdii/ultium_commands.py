@@ -117,6 +117,18 @@ def _u8(value: Any) -> int | None:
     return data[0] if data else None
 
 
+def _charge_state(value: Any) -> str | None:
+    data = _payload(value)
+    if not data:
+        return None
+    raw = data[0]
+    if raw == 0:
+        return "idle"
+    if 0x91 <= raw <= 0x99:
+        return "charging"
+    return f"0x{raw:02x}"
+
+
 class GMUltiumCommands(GroupCommands):
     """Validated Ultium signals exposed as individual py-obdii commands."""
 
@@ -137,7 +149,7 @@ class GMUltiumCommands(GroupCommands):
     CELL_VOLTAGE_MAX = Command(0x22, "2AF5", 10, 0, 6, "V", _cell_max)
     """Maximum cell voltage."""
 
-    CHARGE_STATE = Command(0x22, "5401", 1, 0, 255, "", _u8)
+    CHARGE_STATE = Command(0x22, "5401", 1, 0, 255, "", _charge_state)
     """Raw charge-state byte (0x00 idle, 0x91-0x99 charging)."""
 
     MODULE_TEMP_MIN = Command(0x22, "2AF1", 12, -40, 100, "°C", _module_temp_min)
@@ -171,14 +183,13 @@ ULTIUM_COMMANDS = list(GMUltiumCommands())
 ULTIUM_COMMANDS_BY_NAME = {command.name: command for command in ULTIUM_COMMANDS}
 ULTIUM_COMMAND_NAMES = [command.name for command in ULTIUM_COMMANDS]
 
-# CHARGE_STATE is useful for diagnostics but is a raw enum. The charging
-# binary sensor derives its state from voltage/current instead.
+# CHARGE_STATE maps the raw 0x00/0x91-0x99 enum to idle/charging and is
+# included so the charging binary sensor can use it directly.
 ULTIUM_DEFAULT_COMMAND_NAMES = [
     name
     for name in ULTIUM_COMMAND_NAMES
     if name
     not in {
-        "CHARGE_STATE",
         # These share a DID with CELL_VOLTAGE_AVG / MODULE_TEMP_MIN. Querying
         # the same DID multiple times makes the BEC time out; the missing
         # values are derived from the single response instead.
