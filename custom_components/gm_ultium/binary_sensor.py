@@ -18,13 +18,15 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 # from homeassistant.helpers import entity_registry
 from . import Obd2BleConfigEntry
 from .const import (
-    CONF_COMMANDS,
+    CONF_COMMAND,
     # CONF_ICON,
     # CONF_UNIT,
     # CONF_DEVICE_CLASS,
     # CONF_STATE_CLASS,
+    CONF_COMMANDS,
 )
 from .coordinator import Obd2BleDataUpdateCoordinator
+from .obdii.ultium_commands import ULTIUM_COMMANDS_BY_NAME
 
 # from .entity import ObdBleEntity
 
@@ -92,6 +94,10 @@ async def async_setup_entry(
     #         _LOGGER.info("Evicting unselected tracking sensor: %s", registered_entity.entity_id)
     #         ent_reg.async_remove(registered_entity.entity_id)
 
+    active_names = {
+        command_config.get(CONF_COMMAND)
+        for command_config in entry.options.get(CONF_COMMANDS, [])
+    }
     coordinator = entry.runtime_data
     # entities: list[ObdBleBinarySensor | ObdBleStatusBinarySensor] = []
     entities: list[ObdBleStatusBinarySensor] = []
@@ -120,6 +126,9 @@ async def async_setup_entry(
             device_class=BinarySensorDeviceClass.CONNECTIVITY,
         )
     ))
+
+    if {"PACK_VOLTAGE", "PACK_CURRENT"} <= active_names:
+        entities.append(ChargingBinarySensor(coordinator, entry))
 
     async_add_entities(entities)
 
@@ -159,6 +168,42 @@ async def async_setup_entry(
 #                 self._attr_is_on = data.value
 
 #         super()._handle_coordinator_update()
+
+class ChargingBinarySensor(
+    CoordinatorEntity[Obd2BleDataUpdateCoordinator], BinarySensorEntity
+):
+    """Charging state derived from pack voltage and current."""
+
+    _attr_name = "Charging"
+    _attr_device_class = BinarySensorDeviceClass.BATTERY_CHARGING
+    _attr_icon = "mdi:ev-station"
+
+    def __init__(
+        self,
+        coordinator: Obd2BleDataUpdateCoordinator,
+        entry: Obd2BleConfigEntry,
+    ) -> None:
+        super().__init__(coordinator)
+        self._attr_device_info = coordinator.device_info
+        self._attr_unique_id = f"{entry.data[CONF_ADDRESS]}-charging"
+
+    def _value(self, name: str):
+        command = ULTIUM_COMMANDS_BY_NAME[name]
+        response = (self.coordinator.data or {}).get(str(command))
+        return response.value if response is not None else None
+
+    def _handle_coordinator_update(self) -> None:
+        voltage = self._value("PACK_VOLTAGE")
+        current = self._value("PACK_CURRENT")
+        if voltage is not None and current is not None:
+            power = -(voltage * current) / 1000.0
+            self._attr_is_on = power > 0.5
+            self._attr_available = True
+        else:
+            self._attr_is_on = None
+            self._attr_available = False
+        super()._handle_coordinator_update()
+
 
 class ObdBleStatusBinarySensor(CoordinatorEntity[Obd2BleDataUpdateCoordinator], BinarySensorEntity):
     """Config entry for obd2_ble binary sensors."""

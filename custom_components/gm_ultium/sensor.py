@@ -14,11 +14,12 @@ from homeassistant.components.sensor import (
 from homeassistant.const import CONF_ADDRESS, EntityCategory
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry
+from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from obdii import Command, Response
-from obdii import commands as veh_commands
 
 from . import Obd2BleConfigEntry
 from .const import (
+    CONF_COMMAND,
     CONF_COMMANDS,
     CONF_DEVICE_CLASS,
     CONF_ICON,
@@ -30,8 +31,95 @@ from .const import (
 )
 from .coordinator import Obd2BleDataUpdateCoordinator
 from .entity import ObdBleEntity
+from .obdii.ultium_commands import ULTIUM_COMMANDS_BY_NAME, resolve_command
 
 _LOGGER = logging.getLogger(__name__)
+
+COMMAND_METADATA: dict[str, dict] = {
+    "STATE_OF_CHARGE": {
+        "name": "State of charge",
+        "icon": "mdi:battery",
+        "unit": "%",
+        "device_class": SensorDeviceClass.BATTERY,
+        "state_class": SensorStateClass.MEASUREMENT,
+    },
+    "ENERGY_REMAINING": {
+        "name": "Energy remaining",
+        "icon": "mdi:battery-charging",
+        "unit": "kWh",
+        "device_class": SensorDeviceClass.ENERGY,
+        "state_class": SensorStateClass.MEASUREMENT,
+    },
+    "PACK_VOLTAGE": {
+        "name": "Pack voltage",
+        "icon": "mdi:flash",
+        "unit": "V",
+        "device_class": SensorDeviceClass.VOLTAGE,
+        "state_class": SensorStateClass.MEASUREMENT,
+    },
+    "PACK_CURRENT": {
+        "name": "Pack current",
+        "icon": "mdi:current-dc",
+        "unit": "A",
+        "device_class": SensorDeviceClass.CURRENT,
+        "state_class": SensorStateClass.MEASUREMENT,
+    },
+    "CELL_VOLTAGE_AVG": {
+        "name": "Cell voltage average",
+        "icon": "mdi:battery-heart-variant",
+        "unit": "V",
+        "device_class": SensorDeviceClass.VOLTAGE,
+        "state_class": SensorStateClass.MEASUREMENT,
+        "entity_category": EntityCategory.DIAGNOSTIC,
+    },
+    "CELL_VOLTAGE_MIN": {
+        "name": "Cell voltage minimum",
+        "icon": "mdi:battery-heart-variant",
+        "unit": "V",
+        "device_class": SensorDeviceClass.VOLTAGE,
+        "state_class": SensorStateClass.MEASUREMENT,
+        "entity_category": EntityCategory.DIAGNOSTIC,
+    },
+    "CELL_VOLTAGE_MAX": {
+        "name": "Cell voltage maximum",
+        "icon": "mdi:battery-heart-variant",
+        "unit": "V",
+        "device_class": SensorDeviceClass.VOLTAGE,
+        "state_class": SensorStateClass.MEASUREMENT,
+        "entity_category": EntityCategory.DIAGNOSTIC,
+    },
+    "MODULE_TEMP_MIN": {
+        "name": "Module temperature minimum",
+        "icon": "mdi:thermometer",
+        "unit": "°C",
+        "device_class": SensorDeviceClass.TEMPERATURE,
+        "state_class": SensorStateClass.MEASUREMENT,
+        "entity_category": EntityCategory.DIAGNOSTIC,
+    },
+    "MODULE_TEMP_MAX": {
+        "name": "Module temperature maximum",
+        "icon": "mdi:thermometer",
+        "unit": "°C",
+        "device_class": SensorDeviceClass.TEMPERATURE,
+        "state_class": SensorStateClass.MEASUREMENT,
+        "entity_category": EntityCategory.DIAGNOSTIC,
+    },
+    "RANGE_MILES": {
+        "name": "Range",
+        "icon": "mdi:map-marker-distance",
+        "unit": "mi",
+        "device_class": SensorDeviceClass.DISTANCE,
+        "state_class": SensorStateClass.MEASUREMENT,
+    },
+    "LOW_VOLTAGE": {
+        "name": "12 V battery",
+        "icon": "mdi:car-battery",
+        "unit": "V",
+        "device_class": SensorDeviceClass.VOLTAGE,
+        "state_class": SensorStateClass.MEASUREMENT,
+        "entity_category": EntityCategory.DIAGNOSTIC,
+    },
+}
 
 
 def propose_icon_from_command(command: Command) -> str:
@@ -99,13 +187,23 @@ def propose_sensor_device_class(command: Command) -> SensorDeviceClass | None:
 
 
 class Obd2BleSensorEntityConfig:
-    def __init__(self, command: Command, name: str|None=None, icon: str|None=None, unit: str|None=None, **kwargs) -> None:
+    def __init__(
+        self,
+        command: Command,
+        name: str | None = None,
+        icon: str | None = None,
+        unit: str | None = None,
+        entity_category: EntityCategory | None = None,
+        **kwargs,
+    ) -> None:
         self.command = command
         self.description = SensorEntityDescription(
             key=command.name,
-            name=name or " ".join(command.name.replace("_", " ").split()).capitalize(),
+            name=name
+            or " ".join(command.name.replace("_", " ").split()).capitalize(),
             icon=icon,
             native_unit_of_measurement=unit,
+            entity_category=entity_category,
             **kwargs,
         )
 
@@ -121,18 +219,28 @@ async def async_setup_entry(
     sensor_commands: list[Obd2BleSensorEntityConfig] = []
     for command_config in entry.options.get(CONF_COMMANDS, []):
         try:
-            command = veh_commands[command_config.get("command")]
+            command = resolve_command(command_config.get(CONF_COMMAND))
         except KeyError:
-            _LOGGER.error(f"Command {command_config.get('command')} not found in obdii.commands, skipping")
+            _LOGGER.error(
+                "Command %s not found, skipping",
+                command_config.get(CONF_COMMAND),
+            )
         else:
+            meta = COMMAND_METADATA.get(command.name, {})
             active_command_names.add(command.name)
-            sensor_commands.append(Obd2BleSensorEntityConfig(
-                command=command,
-                icon=command_config.get(CONF_ICON) or None,
-                unit=command_config.get(CONF_UNIT) or None,
-                device_class=command_config.get(CONF_DEVICE_CLASS) or None,
-                state_class=command_config.get(CONF_STATE_CLASS) or None,
-            ))
+            sensor_commands.append(
+                Obd2BleSensorEntityConfig(
+                    command=command,
+                    name=meta.get("name"),
+                    icon=command_config.get(CONF_ICON) or meta.get("icon"),
+                    unit=command_config.get(CONF_UNIT) or meta.get("unit"),
+                    device_class=command_config.get(CONF_DEVICE_CLASS)
+                    or meta.get("device_class"),
+                    state_class=command_config.get(CONF_STATE_CLASS)
+                    or meta.get("state_class"),
+                    entity_category=meta.get("entity_category"),
+                )
+            )
 
     ent_reg = entity_registry.async_get(hass)
     existing_registry_entries = entity_registry.async_entries_for_config_entry(ent_reg, entry.entry_id)
@@ -153,6 +261,10 @@ async def async_setup_entry(
         ObdBleSensor(coordinator, entry, sensor)
         for sensor in sensor_commands
     ]
+    if {"PACK_VOLTAGE", "PACK_CURRENT"} <= active_command_names:
+        entities.append(BatteryPowerSensor(coordinator, entry))
+    if {"ENERGY_REMAINING", "STATE_OF_CHARGE"} <= active_command_names:
+        entities.append(EstimatedCapacitySensor(coordinator, entry))
     if entry.data.get(CONF_MEASUREMENT_MODE):
         entities.append(SleepLogStatusSensor(hass, coordinator, entry))
     async_add_entities(entities)
@@ -189,6 +301,83 @@ class SleepLogStatusSensor(SensorEntity):
             key: value for key, value in status.items() if key != "state"
         }
 
+class _DerivedUltiumSensor(
+    CoordinatorEntity[Obd2BleDataUpdateCoordinator], SensorEntity
+):
+    """Base class for values derived from multiple Ultium commands."""
+
+    def __init__(
+        self,
+        coordinator: Obd2BleDataUpdateCoordinator,
+        entry: Obd2BleConfigEntry,
+    ) -> None:
+        super().__init__(coordinator)
+        self._attr_device_info = coordinator.device_info
+
+    def _value(self, name: str):
+        command = ULTIUM_COMMANDS_BY_NAME[name]
+        response = (self.coordinator.data or {}).get(str(command))
+        return response.value if response is not None else None
+
+
+class BatteryPowerSensor(_DerivedUltiumSensor):
+    """Signed battery power; positive means charging."""
+
+    _attr_name = "Battery power"
+    _attr_native_unit_of_measurement = "kW"
+    _attr_device_class = SensorDeviceClass.POWER
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_icon = "mdi:battery-charging"
+
+    def __init__(
+        self,
+        coordinator: Obd2BleDataUpdateCoordinator,
+        entry: Obd2BleConfigEntry,
+    ) -> None:
+        super().__init__(coordinator, entry)
+        self._attr_unique_id = f"{entry.data[CONF_ADDRESS]}-battery-power"
+
+    def _handle_coordinator_update(self) -> None:
+        voltage = self._value("PACK_VOLTAGE")
+        current = self._value("PACK_CURRENT")
+        if voltage is not None and current is not None:
+            self._attr_native_value = -(voltage * current) / 1000.0
+            self._attr_available = True
+        else:
+            self._attr_native_value = None
+            self._attr_available = False
+        super()._handle_coordinator_update()
+
+
+class EstimatedCapacitySensor(_DerivedUltiumSensor):
+    """Full-pack capacity estimated from remaining energy and SOC."""
+
+    _attr_name = "Estimated capacity"
+    _attr_native_unit_of_measurement = "kWh"
+    _attr_device_class = SensorDeviceClass.ENERGY
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_icon = "mdi:battery-high"
+
+    def __init__(
+        self,
+        coordinator: Obd2BleDataUpdateCoordinator,
+        entry: Obd2BleConfigEntry,
+    ) -> None:
+        super().__init__(coordinator, entry)
+        self._attr_unique_id = f"{entry.data[CONF_ADDRESS]}-estimated-capacity"
+
+    def _handle_coordinator_update(self) -> None:
+        energy = self._value("ENERGY_REMAINING")
+        soc = self._value("STATE_OF_CHARGE")
+        if energy is not None and soc:
+            self._attr_native_value = energy / (soc / 100.0)
+            self._attr_available = True
+        else:
+            self._attr_native_value = None
+            self._attr_available = False
+        super()._handle_coordinator_update()
+
+
 class ObdBleSensor(ObdBleEntity, SensorEntity):
     """Config entry for obd2_ble sensors."""
 
@@ -211,7 +400,7 @@ class ObdBleSensor(ObdBleEntity, SensorEntity):
     # async def async_update(self) -> None:
     def _handle_coordinator_update(self) -> None:
         try:
-            data: Response | None = self.coordinator.data.get(str(self._command))
+            data: Response | None = (self.coordinator.data or {}).get(str(self._command))
             _LOGGER.debug("Updating sensor %s with data: %s", str(self._command), data)
         except Exception as ex:
             _LOGGER.error(f"Error updating sensor {str(self._command)}: {ex}")

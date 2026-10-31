@@ -164,6 +164,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: Obd2BleConfigEntry) -> b
         _async_register_measurement_services(hass, entry)
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+    if not measurement_mode:
+        hass.async_create_task(coordinator.async_request_refresh())
 
     @callback
     def _async_specific_device_found(

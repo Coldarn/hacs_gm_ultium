@@ -11,9 +11,9 @@ transport, config flow, adaptive polling, and HACS packaging come from that
 project. The GM Ultium command set, 29-bit header handling, and validated
 signal definitions are new here.
 
-> **Status:** the protocol layer, standalone CLI, and Home Assistant measurement
-> mode are validated against a 2024 BrightDrop Zevo with a VEEPEAK BLE dongle
-> (ELM327 v1.5). The normal entity layer is the next milestone.
+> **Status:** the protocol layer, standalone CLI, normal battery sensors, and
+> measurement mode are implemented against a 2024 BrightDrop Zevo with a
+> VEEPEAK BLE dongle (ELM327 v1.5).
 
 ## Validated signals
 
@@ -136,12 +136,33 @@ tests/
    integration repository.
 2. Install **GM Ultium**, restart Home Assistant.
 3. Add the integration and select the VEEPEAK device (or enter its MAC
-   address).
+   address). Leave **Measurement mode** unchecked for normal battery sensors.
 
 The integration discovers `VEEPEAK*` advertisements and defaults the write
-characteristic to `FFF2`. The normal entity layer (SOC, remaining charge,
-estimated capacity, signed power, charging, cell voltages, range, 12 V) is the
-next milestone.
+characteristic to `FFF2`.
+
+## Normal battery sensors
+
+With Measurement mode unchecked, the integration auto-configures the validated
+Ultium command set and creates:
+
+- **State of charge** (%)
+- **Energy remaining** (kWh)
+- **Estimated capacity** (kWh, derived from energy ÷ SOC)
+- **Battery power** (kW, positive = charging)
+- **Pack voltage** (V) and **pack current** (A, positive = discharge)
+- **Charging** binary sensor (derived from pack power)
+- **Range** (mi)
+- Diagnostic entities for cell voltage min/avg/max, module temperature
+  min/max, and the 12 V rail
+
+Polling defaults: 30 s when the vehicle is awake, 5 min when parked, 1 h when
+out of range. Cached values keep the last reading when the vehicle sleeps.
+
+Only one integration may own the dongle. Remove or disable any **OBD2 BLE**
+entry and close Car Scanner before using GM Ultium. If HA reports that the
+adapter has no free connection slot, add an ESPHome Bluetooth proxy near the
+vehicle.
 
 ## Measurement mode
 

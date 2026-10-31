@@ -5,6 +5,7 @@ from datetime import timedelta
 from typing import Any
 
 from bleak.backends.device import BLEDevice
+from bleak_retry_connector import BleakOutOfConnectionSlotsError
 from homeassistant.components import bluetooth
 from homeassistant.components.bluetooth.api import async_address_present
 from homeassistant.components.bluetooth.const import DOMAIN as BLUETOOTH_DOMAIN
@@ -16,7 +17,6 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, Upda
 from obdii import Command, Connection, Protocol, Response, at_commands
 from obdii import __version__ as obdii_version
 from obdii import commands as veh_commands
-from obdii.basetypes import MISSING
 
 from .const import (
     CONF_CACHED_VALUES,
@@ -37,6 +37,7 @@ from .const import (
     DOMAIN,
 )
 from .obdii.transport_ble import TransportBLE
+from .obdii.ultium_commands import ULTIUM_COMMANDS, get_command_can_header
 
 try:
     from .debug import FAKE_COMMANDS
@@ -76,6 +77,7 @@ class Obd2BleDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Response]]):
         self.transport: TransportBLE | None = None 
         self.api: Connection | None = None
         self.active_commands: set[Command] = set()
+        self._active_can_header: str | None = None
 
         if not entry or not entry.unique_id:
             raise ConditionError("No unique_id found in config entry")
@@ -90,9 +92,8 @@ class Obd2BleDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Response]]):
 
         # self._connect_ble()
 
-    def _connect_ble(self) -> bool:
+    async def _async_connect_ble(self) -> bool:
         """Connect to the BLE device."""
-
         if not self.config_entry or not self.config_entry.unique_id:
             _LOGGER.error("No config entry available for coordinator")
             return False
@@ -101,38 +102,85 @@ class Obd2BleDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Response]]):
         ble_device: BLEDevice | None = bluetooth.async_ble_device_from_address(
             self.hass, address, True
         )
-
         if ble_device is None:
             _LOGGER.warning("Failed to discover device %s via Bluetooth", address)
             return False
 
         entry_data = dict(self.config_entry.data)
-
         self.transport = TransportBLE(
             ble_device=ble_device,
-            uuid_write=entry_data.get(CONF_CHARACTERISTIC_UUID_WRITE, DEFAULT_CHARACTERISTIC_UUID_WRITE),
-            uuid_read=entry_data.get(CONF_CHARACTERISTIC_UUID_READ, DEFAULT_CHARACTERISTIC_UUID_READ),
-            # timeout=self.config_entry.options.get("timeout", 10.0),
-            loop = self.hass.loop,
+            uuid_write=entry_data.get(
+                CONF_CHARACTERISTIC_UUID_WRITE, DEFAULT_CHARACTERISTIC_UUID_WRITE
+            ),
+            uuid_read=entry_data.get(
+                CONF_CHARACTERISTIC_UUID_READ, DEFAULT_CHARACTERISTIC_UUID_READ
+            ),
+            loop=self.hass.loop,
         )
-
         self.api = Connection(
             transport=self.transport,
             auto_connect=False,
-            protocol=Protocol(entry_data.get(CONF_PROTOCOL, Protocol.AUTO.value)),
-            log_handler=MISSING,
-            log_formatter=MISSING,
-            log_level=MISSING,
+            protocol=Protocol(
+                int(
+                    entry_data.get(
+                        CONF_PROTOCOL, Protocol.ISO_15765_4_CAN_B.value
+                    )
+                )
+            ),
+            log_handler=None,
         )
 
-        self.api.connect()
-        hw_version = self.api.query(at_commands.VERSION_ID)
+        try:
+            await self.hass.async_add_executor_job(self.api.connect)
+            hw_version = await self.hass.async_add_executor_job(
+                self.api.query, at_commands.VERSION_ID
+            )
+        except Exception as err:
+            self.api = None
+            self.transport = None
+            cause = err.__cause__
+            if isinstance(cause, BleakOutOfConnectionSlotsError) or (
+                "connection slot" in str(err).lower()
+            ):
+                raise UpdateFailed(
+                    "No free Bluetooth connection slot for the dongle. Close "
+                    "other BLE integrations/apps or add a Bluetooth proxy."
+                ) from err
+            raise UpdateFailed(f"Error connecting to OBD2: {err}") from err
+
         if hw_version is not None:
             entry_data[CONF_HW_VERSION] = hw_version.value if hw_version else None
             self.device_info["hw_version"] = hw_version.value if hw_version else None
-            self.hass.config_entries.async_update_entry(self.config_entry, data=entry_data)
+            self.hass.config_entries.async_update_entry(
+                self.config_entry, data=entry_data
+            )
 
+        self._active_can_header = None
         return True
+
+    async def _async_set_can_header(self, header: str) -> None:
+        """Set the 3-byte ELM327 CAN header for a command."""
+        if self.api is None:
+            return
+        normalized = header.strip().upper()
+        if len(normalized) != 6 or any(
+            char not in "0123456789ABCDEF" for char in normalized
+        ):
+            raise UpdateFailed(f"Invalid CAN header {header!r}")
+        if self._active_can_header == normalized:
+            return
+
+        response = await self.hass.async_add_executor_job(
+            self.api.query,
+            at_commands.SET_HEADER(
+                xx=normalized[0:2], yy=normalized[2:4], zz=normalized[4:6]
+            ),
+        )
+        if response.value != "OK":
+            raise UpdateFailed(
+                f"Adapter rejected CAN header {normalized}: {response.value!r}"
+            )
+        self._active_can_header = normalized
 
     async def async_shutdown(self) -> None:
         """Shutdown coordinator and any connection."""
@@ -170,8 +218,8 @@ class Obd2BleDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Response]]):
             return {}
         
         if self.api is None:
-            if not self._connect_ble():
-                return {}
+            if not await self._async_connect_ble():
+                raise UpdateFailed("Dongle not found in the Bluetooth cache")
 
         assert self.api is not None, "API should be initialized at this point"
         _LOGGER.debug("Device is available, check if connected")
@@ -193,6 +241,9 @@ class Obd2BleDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Response]]):
                     _LOGGER.warning("Skipping invalid command: %s", command)
                     continue
                 try:
+                    header = get_command_can_header(command)
+                    if header:
+                        await self._async_set_can_header(header)
                     _LOGGER.debug("Querying OBD2 for command %s", command)
                     response: Response = await self.hass.async_add_executor_job(self.api.query, command)
                     _LOGGER.debug("Received response for command %s: %s", command, response)
@@ -228,7 +279,9 @@ class Obd2BleDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Response]]):
             return self._supported_pids, self._supported_cmds
 
         if self.api is None or not self.api.is_connected():
-            raise UpdateFailed("No connection to OBD2 to get supported PIDs and Commands")
+            # The options flow can still offer the curated Ultium commands
+            # without a live connection.
+            return [], list(ULTIUM_COMMANDS)
         
         self._supported_pids = []
         self._supported_cmds = FAKE_COMMANDS.copy()
@@ -245,6 +298,7 @@ class Obd2BleDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Response]]):
             except Exception:
                 _LOGGER.warning(f"Failed to query supported PIDs for command {veh_commands[1][cmd]}")
 
+        self._supported_cmds = list({*self._supported_cmds, *ULTIUM_COMMANDS})
         _LOGGER.info(f"Supported PIDs: {self._supported_pids}")
         _LOGGER.info(f"Supported Commands: {self._supported_cmds}")
 

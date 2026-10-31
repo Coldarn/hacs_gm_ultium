@@ -14,6 +14,7 @@ from collections.abc import Iterable
 from typing import Any
 
 from obdii import Command
+from obdii import commands as veh_commands
 from obdii.modes.group_commands import GroupCommands
 from obdii.parsers.formula import Formula
 
@@ -155,6 +156,13 @@ class GMUltiumCommands(GroupCommands):
 
 ULTIUM_COMMANDS = list(GMUltiumCommands())
 ULTIUM_COMMANDS_BY_NAME = {command.name: command for command in ULTIUM_COMMANDS}
+ULTIUM_COMMAND_NAMES = [command.name for command in ULTIUM_COMMANDS]
+
+# CHARGE_STATE is useful for diagnostics but is a raw enum. The charging
+# binary sensor derives its state from voltage/current instead.
+ULTIUM_DEFAULT_COMMAND_NAMES = [
+    name for name in ULTIUM_COMMAND_NAMES if name != "CHARGE_STATE"
+]
 
 ULTIUM_COMMAND_CAN_HEADERS = {
     "STATE_OF_CHARGE": BEC_HEADER,
@@ -170,3 +178,16 @@ ULTIUM_COMMAND_CAN_HEADERS = {
     "PACK_CURRENT": DMCM_HEADER,
     "LOW_VOLTAGE": BEC_HEADER,
 }
+
+
+def resolve_command(name: str) -> Command:
+    """Resolve a GM Ultium command name or a standard py-obdii command name."""
+    if name in ULTIUM_COMMANDS_BY_NAME:
+        return ULTIUM_COMMANDS_BY_NAME[name]
+    return veh_commands[name]
+
+
+def get_command_can_header(command: Command | str) -> str | None:
+    """Return the 3-byte ELM327 header for a command, if it needs routing."""
+    command_name = command if isinstance(command, str) else command.name
+    return ULTIUM_COMMAND_CAN_HEADERS.get(command_name)

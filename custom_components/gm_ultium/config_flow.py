@@ -14,12 +14,9 @@ from dataclasses import dataclass
 
 import voluptuous as vol
 from bleak.backends.characteristic import BleakGATTCharacteristic
-from bleak.backends.device import BLEDevice
-from bleak_retry_connector import BleakOutOfConnectionSlotsError
 from homeassistant import config_entries
 from homeassistant.components.bluetooth import (
     BluetoothServiceInfoBleak,
-    async_ble_device_from_address,
     async_discovered_service_info,
 )
 from homeassistant.components.sensor import SensorDeviceClass, SensorStateClass
@@ -27,12 +24,10 @@ from homeassistant.const import CONF_ADDRESS
 from homeassistant.core import callback
 from homeassistant.helpers import device_registry, selector
 from obdii import Command
-from obdii import commands as veh_commands
 from obdii.protocol import Protocol
 
 from . import Obd2BleConfigEntry
 from .const import (
-    CONF_AUTO_CONFIGURE,
     CONF_CACHED_VALUES,
     CONF_CHARACTERISTIC_UUID_READ,
     CONF_CHARACTERISTIC_UUID_WRITE,
@@ -61,6 +56,7 @@ from .obdii.transport_ble_identifiers import (
     BaseOBD2,
     advertisement_matches,
 )
+from .obdii.ultium_commands import ULTIUM_DEFAULT_COMMAND_NAMES, resolve_command
 from .sensor import (
     get_list_of_units,
     propose_icon_from_command,
@@ -160,9 +156,6 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         for service_info in self._discovered_devices.values()
                     }
                 ),
-                vol.Required(
-                    CONF_AUTO_CONFIGURE, default=True
-                ): bool,
                 vol.Optional(CONF_MEASUREMENT_MODE, default=True): bool,
             }
         )
@@ -188,63 +181,25 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     },
                 )
 
-            if user_input.get(CONF_AUTO_CONFIGURE, True):
-                if obdii_dev := await self._async_device_supported(self._discovery_info):
-                    _LOGGER.debug("Auto-configuring device %s using class %s", self._discovery_info.name, obdii_dev.__name__)
-                    self._characteristic_uuid_read = obdii_dev.uuid_rx()
-                    self._characteristic_uuid_write = obdii_dev.uuid_tx()
-                else:
-                    _LOGGER.warning("Device %s does not match any known OBD2 classes, auto-configuration may fail", self._discovery_info.name)
-
-            try:
-                ble_device: BLEDevice | None = async_ble_device_from_address(
-                    self.hass, self._discovery_info.address, True
-                )
-                if ble_device is None:
-                    errors["base"] = "cannot_connect"
-                    return self.async_show_form(
-                        step_id="user",
-                        data_schema=self._user_schema(),
-                        errors=errors,
-                    )
-
-                self._transport = TransportBLE(
-                    ble_device=ble_device,
-                    uuid_write=self._characteristic_uuid_write,
-                    uuid_read=self._characteristic_uuid_read,
-                    loop=self.hass.loop,
-                )
-                await self._transport.async_connect()
-            except BleakOutOfConnectionSlotsError:
-                if self._transport and self._transport.is_connected():
-                    await self._transport.async_close()
-                self._transport = None
-                _LOGGER.warning(
-                    "No free Bluetooth connection slot for %s. Close other "
-                    "BLE integrations/apps or add a Bluetooth proxy.",
-                    self._discovery_info.address,
-                )
-                errors["base"] = "out_of_connection_slots"
-                return self.async_show_form(
-                    step_id="user",
-                    data_schema=self._user_schema(),
-                    errors=errors,
-                )
-            except Exception:
-                if self._transport and self._transport.is_connected():
-                    await self._transport.async_close()
-                self._transport = None
-                _LOGGER.exception(
-                    "Failed to connect to %s", self._discovery_info.address
-                )
-                errors["base"] = "cannot_connect"
-                return self.async_show_form(
-                    step_id="user",
-                    data_schema=self._user_schema(),
-                    errors=errors,
-                )
-
-            return await self.async_step_connection()
+            return self.async_create_entry(
+                title=self._discovery_info.name,
+                data={
+                    CONF_ADDRESS: self._discovery_info.address,
+                    CONF_CHARACTERISTIC_UUID_READ: DEFAULT_CHARACTERISTIC_UUID_READ,
+                    CONF_CHARACTERISTIC_UUID_WRITE: DEFAULT_CHARACTERISTIC_UUID_WRITE,
+                    CONF_PROTOCOL: Protocol.ISO_15765_4_CAN_B.value,
+                    CONF_MEASUREMENT_MODE: False,
+                },
+                options={
+                    CONF_COMMANDS: [
+                        {"command": name} for name in ULTIUM_DEFAULT_COMMAND_NAMES
+                    ],
+                    CONF_CACHED_VALUES: True,
+                    CONF_FAST_POLL: 30,
+                    CONF_SLOW_POLL: 300,
+                    CONF_XS_POLL: 3600,
+                },
+            )
 
         if discovery := self._discovery_info:
             self._discovered_devices[discovery.address] = discovery
@@ -477,13 +432,18 @@ class Obd2BleOptionsFlowHandler(_OPTIONS_FLOW_BASE):
                 )
 
             # Save the list of target objects we want to configure sequentially
-            self._selected_commands = [veh_commands[cmd] for cmd in user_input[CONF_COMMANDS]]
+            self._selected_commands = [
+                resolve_command(cmd) for cmd in user_input[CONF_COMMANDS]
+            ]
             self._configured_commands = [] # Reset our configuration queue storage
             return await self.async_step_commands_config()
 
         _, commands = await self.config_entry.runtime_data.async_get_all_pid_commands(force_refresh=True)
         if pre_configured := self._options.get(CONF_COMMANDS):
-            commands = list(set(commands) | {veh_commands[cmd[CONF_COMMAND]] for cmd in pre_configured})
+            commands = list(
+                set(commands)
+                | {resolve_command(cmd[CONF_COMMAND]) for cmd in pre_configured}
+            )
         commands = sorted(commands, key=lambda cmd: (cmd.name, cmd.mode, cmd.pid))
 
         return self.async_show_form(

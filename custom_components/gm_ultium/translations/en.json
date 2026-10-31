@@ -13,7 +13,7 @@
         "data": {
           "address": "Discovered Devices",
           "auto_configure": "Attempt automatic profile detection.",
-          "measurement_mode": "Measurement mode (sleep/power logging; disables normal polling)"
+          "measurement_mode": "Measurement mode (sleep/power logging). Uncheck to create the normal battery sensors."
         }
       },
       "manual": {
