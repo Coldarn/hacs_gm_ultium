@@ -15,6 +15,7 @@ from dataclasses import dataclass
 import voluptuous as vol
 from bleak.backends.characteristic import BleakGATTCharacteristic
 from bleak.backends.device import BLEDevice
+from bleak_retry_connector import BleakOutOfConnectionSlotsError
 from homeassistant import config_entries
 from homeassistant.components.bluetooth import (
     BluetoothServiceInfoBleak,
@@ -149,6 +150,23 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         }
         return await self.async_step_user()
 
+    def _user_schema(self) -> vol.Schema:
+        """Build the discovered-device form schema."""
+        return vol.Schema(
+            {
+                vol.Required(CONF_ADDRESS): vol.In(
+                    {
+                        service_info.address: f"{service_info.name} ({service_info.address})"
+                        for service_info in self._discovered_devices.values()
+                    }
+                ),
+                vol.Required(
+                    CONF_AUTO_CONFIGURE, default=True
+                ): bool,
+                vol.Optional(CONF_MEASUREMENT_MODE, default=True): bool,
+            }
+        )
+
     async def async_step_user(self, user_input: dict | None = None) -> config_entries.ConfigFlowResult:
         """Handle the user step to pick discovered device."""
         errors: dict[str, str] = {}
@@ -178,17 +196,53 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 else:
                     _LOGGER.warning("Device %s does not match any known OBD2 classes, auto-configuration may fail", self._discovery_info.name)
 
-            ble_device: BLEDevice | None = async_ble_device_from_address(
-                self.hass, self._discovery_info.address, True
-            )
-            assert ble_device is not None, "Device disappeared after selection - this should not happen"
-            self._transport = TransportBLE(
-                ble_device=ble_device,
-                uuid_write=self._characteristic_uuid_write,
-                uuid_read=self._characteristic_uuid_read,
-                loop=self.hass.loop,
-            )
-            await self._transport.async_connect()
+            try:
+                ble_device: BLEDevice | None = async_ble_device_from_address(
+                    self.hass, self._discovery_info.address, True
+                )
+                if ble_device is None:
+                    errors["base"] = "cannot_connect"
+                    return self.async_show_form(
+                        step_id="user",
+                        data_schema=self._user_schema(),
+                        errors=errors,
+                    )
+
+                self._transport = TransportBLE(
+                    ble_device=ble_device,
+                    uuid_write=self._characteristic_uuid_write,
+                    uuid_read=self._characteristic_uuid_read,
+                    loop=self.hass.loop,
+                )
+                await self._transport.async_connect()
+            except BleakOutOfConnectionSlotsError:
+                if self._transport and self._transport.is_connected():
+                    await self._transport.async_close()
+                self._transport = None
+                _LOGGER.warning(
+                    "No free Bluetooth connection slot for %s. Close other "
+                    "BLE integrations/apps or add a Bluetooth proxy.",
+                    self._discovery_info.address,
+                )
+                errors["base"] = "out_of_connection_slots"
+                return self.async_show_form(
+                    step_id="user",
+                    data_schema=self._user_schema(),
+                    errors=errors,
+                )
+            except Exception:
+                if self._transport and self._transport.is_connected():
+                    await self._transport.async_close()
+                self._transport = None
+                _LOGGER.exception(
+                    "Failed to connect to %s", self._discovery_info.address
+                )
+                errors["base"] = "cannot_connect"
+                return self.async_show_form(
+                    step_id="user",
+                    data_schema=self._user_schema(),
+                    errors=errors,
+                )
 
             return await self.async_step_connection()
 
@@ -221,23 +275,9 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             )
             return await self.async_step_manual()
 
-        data_schema = vol.Schema(
-            {
-                vol.Required(CONF_ADDRESS): vol.In(
-                    {
-                        service_info.address: f"{service_info.name} ({service_info.address})"
-                        for service_info in self._discovered_devices.values()
-                    }
-                ),
-                vol.Required(
-                    CONF_AUTO_CONFIGURE, default=True
-                ): bool,
-                vol.Optional(CONF_MEASUREMENT_MODE, default=False): bool,
-            }
-        )
         return self.async_show_form(
             step_id="user",
-            data_schema=data_schema,
+            data_schema=self._user_schema(),
             errors=errors,
         )
 

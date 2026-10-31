@@ -44,7 +44,9 @@
     "error": {
       "missing_unique_id": "Critical connection error: The configuration entry lacks a valid unique Bluetooth MAC address identifier.",
       "device_not_found": "Could not establish an over-the-air link to the device with MAC address {mac}. Verify it is powered and in range.",
-      "invalid_address": "Enter a MAC address in the form AA:BB:CC:DD:EE:FF."
+      "invalid_address": "Enter a MAC address in the form AA:BB:CC:DD:EE:FF.",
+      "cannot_connect": "Could not connect to the dongle. Close Car Scanner or any other BLE integration using it, then try again.",
+      "out_of_connection_slots": "The Bluetooth adapter has no free connection slot for the dongle. Close other BLE connections/integrations or add a Bluetooth proxy, then try again."
     }
   },
   "options": {
