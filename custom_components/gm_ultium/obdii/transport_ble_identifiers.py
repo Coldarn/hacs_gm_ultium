@@ -37,9 +37,13 @@ class BaseOBD2(ABC):
 class OBD2_BLE(BaseOBD2):
     @staticmethod
     def matcher_dict_list() -> list[MatcherPattern]:
-        """Provide BluetoothMatcher definition."""
+        """Provide BluetoothMatcher definition.
+
+        ELM327-compatible BLE dongles all expose the FFF0 service but use
+        different local names (VEEPEAK, OBDII, OBD2, Vgate, ...). Matching on
+        the service UUID is therefore the reliable common denominator.
+        """
         return [{
-            "local_name": "OBDII",
             "service_uuid": "0000fff0-0000-1000-8000-00805f9b34fb"
         }]
 
