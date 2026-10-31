@@ -156,8 +156,14 @@ Ultium command set and creates:
 - Diagnostic entities for cell voltage min/avg/max, module temperature
   min/max, and the 12 V rail
 
-Polling defaults: 30 s when the vehicle is awake, 5 min when parked, 1 h when
-out of range. Cached values keep the last reading when the vehicle sleeps.
+Polling defaults: 30 s when the vehicle is awake, 5 min when parked, 5 min
+when out of range. Cached values keep the last reading when the vehicle sleeps.
+
+If the vehicle wakes and the sensors are still stale, call
+`gm_ultium.attempt_to_connect` from Developer Tools. It forces an immediate
+connection attempt and returns `connected: true/false`. The out-of-range probe
+defaults to 5 minutes; lower it in the integration options if you need faster
+automatic recovery.
 
 Only one integration may own the dongle. Remove or disable any **OBD2 BLE**
 entry and close Car Scanner before using GM Ultium. If HA reports that the

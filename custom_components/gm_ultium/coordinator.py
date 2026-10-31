@@ -194,8 +194,13 @@ class Obd2BleDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Response]]):
         else:
             _LOGGER.debug("API connection closed successfully")
 
-    async def _async_update_data(self) -> dict[str, Response]:
-        """Update data via library."""
+    async def _async_update_data(self, force: bool = False) -> dict[str, Response]:
+        """Update data via library.
+
+        ``force`` is used by the manual attempt_to_connect service: it skips the
+        out-of-range backoff and tries a connection even if HA has not seen a
+        recent advertisement.
+        """
 
         if self.measurement_mode:
             return {}
@@ -206,7 +211,7 @@ class Obd2BleDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Response]]):
 
         _LOGGER.debug("Check if the device is still available")
         available = async_address_present(self.hass, self.config_entry.unique_id, connectable=True)
-        if not available:
+        if not available and not force:
             _LOGGER.debug("Car out of range? Switch to extra slow polling")
             self.update_interval = timedelta(seconds=self.config_entry.options.get(CONF_XS_POLL, DEFAULT_XS_POLL))
             _LOGGER.debug(
@@ -322,7 +327,7 @@ class Obd2BleDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Response]]):
     async def async_force_update(self) -> bool:
         """Force an update of the coordinator data by calling the update method directly."""
         try:
-            await self._async_update_data()
+            await self._async_update_data(force=True)
             if self.car_connected():
                 _LOGGER.info("Successfully connected to the car during forced update")
                 return True

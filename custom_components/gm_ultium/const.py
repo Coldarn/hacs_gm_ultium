@@ -67,7 +67,7 @@ DEFAULT_FAST_POLL = 10
 DEFAULT_SLOW_POLL = 5 * 60
 # when the device is out of range, use ultra slow polling since a bluetooth
 # advertisement message will kick it back into life when back in range.
-DEFAULT_XS_POLL = 1 * 60 * 60
+DEFAULT_XS_POLL = 5 * 60
 
 ICON_KEYWORDS: Final[dict[str, str]] = {
     # --- Speed & Rotations ---

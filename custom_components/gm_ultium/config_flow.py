@@ -197,7 +197,7 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     CONF_CACHED_VALUES: True,
                     CONF_FAST_POLL: 30,
                     CONF_SLOW_POLL: 300,
-                    CONF_XS_POLL: 3600,
+                    CONF_XS_POLL: 300,
                 },
             )
 
