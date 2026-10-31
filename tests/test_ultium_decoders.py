@@ -57,6 +57,7 @@ def test_cell_voltages():
 
 def test_charge_state_and_12v():
     assert uc.GMUltiumCommands.CHARGE_STATE.resolver([0x00]) == "idle"
+    assert uc.GMUltiumCommands.CHARGE_STATE.resolver([0x0D]) == "charging"
     assert uc.GMUltiumCommands.CHARGE_STATE.resolver([0x91]) == "charging"
     assert uc.GMUltiumCommands.CHARGE_STATE.resolver([0x50]) == "0x50"
     assert uc.GMUltiumCommands.LOW_VOLTAGE.resolver([0x88]) == pytest.approx(13.6)

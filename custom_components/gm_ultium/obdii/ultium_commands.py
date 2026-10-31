@@ -124,7 +124,10 @@ def _charge_state(value: Any) -> str | None:
     raw = data[0]
     if raw == 0:
         return "idle"
-    if 0x91 <= raw <= 0x99:
+    # 0x0D observed on a 2024 BrightDrop during an active AC charge
+    # (negative pack current, rising energy remaining). The Hummer/Lyriq
+    # sources use 0x91-0x99 for charging; BrightDrop uses 0x0D.
+    if raw == 0x0D or 0x91 <= raw <= 0x99:
         return "charging"
     return f"0x{raw:02x}"
 
