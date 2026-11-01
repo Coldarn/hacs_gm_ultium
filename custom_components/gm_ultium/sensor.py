@@ -1,8 +1,10 @@
 """Sensor platform for GM Ultium."""
 
 import logging
+import time
 
 # from typing import Any
+from collections import deque
 from collections.abc import Iterable
 
 from homeassistant.components.sensor import (
@@ -299,6 +301,8 @@ async def async_setup_entry(
         entities.append(BatteryPowerSensor(coordinator, entry))
     if {"ENERGY_REMAINING", "STATE_OF_CHARGE"} <= active_command_names:
         entities.append(EstimatedCapacitySensor(coordinator, entry))
+    if "ENERGY_REMAINING" in active_command_names:
+        entities.append(ChargePowerEstimateSensor(coordinator, entry))
     if "CELL_VOLTAGE_AVG" in active_command_names:
         entities.append(CellVoltageMinSensor(coordinator, entry))
         entities.append(CellVoltageMaxSensor(coordinator, entry))
@@ -411,6 +415,60 @@ class EstimatedCapacitySensor(_DerivedUltiumSensor):
         soc = self._value("STATE_OF_CHARGE")
         if energy is not None and soc:
             self._attr_native_value = energy / (soc / 100.0)
+            self._attr_available = True
+        else:
+            self._attr_native_value = None
+            self._attr_available = False
+        super()._handle_coordinator_update()
+
+
+class ChargePowerEstimateSensor(
+    CoordinatorEntity[Obd2BleDataUpdateCoordinator], SensorEntity
+):
+    """Charge power estimated from the BEC energy-remaining slope."""
+
+    _attr_name = "Charge power estimate"
+    _attr_native_unit_of_measurement = "kW"
+    _attr_device_class = SensorDeviceClass.POWER
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_suggested_display_precision = 2
+    _attr_icon = "mdi:ev-station"
+
+    WINDOW_S = 15 * 60
+    MIN_SPAN_S = 120
+
+    def __init__(
+        self,
+        coordinator: Obd2BleDataUpdateCoordinator,
+        entry: Obd2BleConfigEntry,
+    ) -> None:
+        super().__init__(coordinator)
+        self._attr_device_info = coordinator.device_info
+        self._attr_unique_id = f"{entry.data[CONF_ADDRESS]}-charge-power-estimate"
+        self._points: deque[tuple[float, float]] = deque()
+
+    def _energy(self):
+        command = ULTIUM_COMMANDS_BY_NAME["ENERGY_REMAINING"]
+        response = (self.coordinator.data or {}).get(str(command))
+        return response.value if response is not None else None
+
+    def _handle_coordinator_update(self) -> None:
+        energy = self._energy()
+        now = time.monotonic()
+        if energy is not None:
+            self._points.append((now, float(energy)))
+
+        cutoff = now - self.WINDOW_S
+        while self._points and self._points[0][0] < cutoff:
+            self._points.popleft()
+
+        if (
+            len(self._points) >= 2
+            and self._points[-1][0] - self._points[0][0] >= self.MIN_SPAN_S
+        ):
+            t0, energy0 = self._points[0]
+            t1, energy1 = self._points[-1]
+            self._attr_native_value = (energy1 - energy0) / ((t1 - t0) / 3600.0)
             self._attr_available = True
         else:
             self._attr_native_value = None
