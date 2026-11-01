@@ -364,7 +364,7 @@ class _DerivedUltiumSensor(
 
 
 class BatteryPowerSensor(_DerivedUltiumSensor):
-    """Signed battery power; positive means charging."""
+    """Signed battery power: direct when available, energy-slope estimate otherwise."""
 
     _attr_name = "Battery power"
     _attr_native_unit_of_measurement = "kW"
@@ -373,6 +373,9 @@ class BatteryPowerSensor(_DerivedUltiumSensor):
     _attr_icon = "mdi:battery-charging"
     _attr_suggested_display_precision = 2
 
+    WINDOW_S = 15 * 60
+    MIN_SPAN_S = 120
+
     def __init__(
         self,
         coordinator: Obd2BleDataUpdateCoordinator,
@@ -380,16 +383,56 @@ class BatteryPowerSensor(_DerivedUltiumSensor):
     ) -> None:
         super().__init__(coordinator, entry)
         self._attr_unique_id = f"{entry.data[CONF_ADDRESS]}-battery-power"
+        self._points: deque[tuple[float, float]] = deque()
+
+    def _energy(self):
+        command = ULTIUM_COMMANDS_BY_NAME["ENERGY_REMAINING"]
+        response = (self.coordinator.data or {}).get(str(command))
+        return response.value if response is not None else None
 
     def _handle_coordinator_update(self) -> None:
         voltage = self._value("PACK_VOLTAGE")
         current = self._value("PACK_CURRENT")
-        if voltage is not None and current is not None:
-            self._attr_native_value = -(voltage * current) / 1000.0
-            self._attr_available = True
+        direct = (
+            -(voltage * current) / 1000.0
+            if voltage is not None and current is not None
+            else None
+        )
+
+        energy = self._energy()
+        now = time.monotonic()
+        if energy is not None:
+            self._points.append((now, float(energy)))
+
+        cutoff = now - self.WINDOW_S
+        while self._points and self._points[0][0] < cutoff:
+            self._points.popleft()
+
+        estimate = None
+        if (
+            len(self._points) >= 2
+            and self._points[-1][0] - self._points[0][0] >= self.MIN_SPAN_S
+        ):
+            t0, energy0 = self._points[0]
+            t1, energy1 = self._points[-1]
+            estimate = (energy1 - energy0) / ((t1 - t0) / 3600.0)
+
+        if direct is not None:
+            self._attr_native_value = direct
+            source = "direct"
+        elif estimate is not None:
+            self._attr_native_value = estimate
+            source = "estimate"
         else:
             self._attr_native_value = None
-            self._attr_available = False
+            source = None
+
+        self._attr_available = self._attr_native_value is not None
+        self._attr_extra_state_attributes = {
+            "source": source,
+            "direct_kw": direct,
+            "estimate_kw": estimate,
+        }
         super()._handle_coordinator_update()
 
 
