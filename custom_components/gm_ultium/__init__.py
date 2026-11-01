@@ -24,6 +24,7 @@ from homeassistant.helpers.config_validation import config_entry_only_config_sch
 
 from .const import (
     ACTION_ATTEMPT_CONNECT,
+    ACTION_DEBUG_QUERY,
     ACTION_GET_SLEEP_LOG_SUMMARY,
     ACTION_START_SLEEP_LOG,
     ACTION_STOP_SLEEP_LOG,
@@ -45,6 +46,15 @@ from .sleep_log import SleepLogger
 _LOGGER: logging.Logger = logging.getLogger(__package__)
 
 CONFIG_SCHEMA = config_entry_only_config_schema(DOMAIN)
+
+DEBUG_QUERY_SCHEMA = vol.Schema(
+    {
+        vol.Required("did"): vol.All(str, vol.Match(r"^[0-9A-Fa-f]{4}$")),
+        vol.Optional("header", default="DACBF1"): vol.All(
+            str, vol.Match(r"^[0-9A-Fa-f]{6}$")
+        ),
+    }
+)
 
 START_SLEEP_LOG_SCHEMA = vol.Schema(
     {
@@ -162,6 +172,20 @@ async def async_setup_entry(hass: HomeAssistant, entry: Obd2BleConfigEntry) -> b
     entry.runtime_data = coordinator
     if measurement_mode:
         _async_register_measurement_services(hass, entry)
+    elif not hass.services.has_service(DOMAIN, ACTION_DEBUG_QUERY):
+
+        async def handle_debug_query(call: ServiceCall) -> ServiceResponse:
+            return await coordinator.async_debug_query(
+                call.data["header"], call.data["did"]
+            )
+
+        hass.services.async_register(
+            DOMAIN,
+            ACTION_DEBUG_QUERY,
+            handle_debug_query,
+            schema=DEBUG_QUERY_SCHEMA,
+            supports_response=SupportsResponse.ONLY,
+        )
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     if not measurement_mode:
@@ -228,6 +252,8 @@ async def async_unload_entry(hass: HomeAssistant, entry: Obd2BleConfigEntry) -> 
         ):
             if hass.services.has_service(DOMAIN, service):
                 hass.services.async_remove(DOMAIN, service)
+    elif hass.services.has_service(DOMAIN, ACTION_DEBUG_QUERY):
+        hass.services.async_remove(DOMAIN, ACTION_DEBUG_QUERY)
 
     unloaded: Final = await hass.config_entries.async_unload_platforms(
         entry, PLATFORMS

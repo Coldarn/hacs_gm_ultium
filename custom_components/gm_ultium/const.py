@@ -42,6 +42,7 @@ CONF_MAX_CYCLES = "max_cycles"
 ACTION_START_SLEEP_LOG = "start_sleep_log"
 ACTION_STOP_SLEEP_LOG = "stop_sleep_log"
 ACTION_GET_SLEEP_LOG_SUMMARY = "get_sleep_log_summary"
+ACTION_DEBUG_QUERY = "debug_query"
 SLEEP_LOG_WWW_DIR = "gm_ultium_logs"
 
 CONF_CACHED_VALUES = "cached_values"

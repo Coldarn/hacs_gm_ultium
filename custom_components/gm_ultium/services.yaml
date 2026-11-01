@@ -88,3 +88,24 @@ stop_sleep_log:
 get_sleep_log_summary:
   name: Get sleep/power log summary
   description: Return the summary of the most recent sleep/power log.
+
+debug_query:
+  name: Debug raw Mode 22 query
+  description: >-
+    Read-only diagnostic query. Requires an active connection; run
+    attempt_to_connect first. Returns the raw ELM327 response.
+  fields:
+    did:
+      name: Data identifier
+      description: Four hex characters, for example 27C6.
+      required: true
+      example: "27C6"
+      selector:
+        text: {}
+    header:
+      name: CAN header
+      description: Three-byte ELM327 header, for example DACBF1 (BEC) or DA17F1 (DMCM).
+      required: false
+      default: DACBF1
+      selector:
+        text: {}

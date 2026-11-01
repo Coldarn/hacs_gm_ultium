@@ -1,5 +1,6 @@
 """Coordinator for GM Ultium."""
 
+import asyncio
 import logging
 from datetime import timedelta
 from typing import Any
@@ -79,6 +80,7 @@ class Obd2BleDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Response]]):
         self.active_commands: set[Command] = set()
         self._active_can_header: str | None = None
         self._force_next_update = False
+        self._api_lock = asyncio.Lock()
 
         if not entry or not entry.unique_id:
             raise ConditionError("No unique_id found in config entry")
@@ -195,6 +197,42 @@ class Obd2BleDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Response]]):
             )
         self._active_can_header = normalized
 
+    async def async_debug_query(self, header: str, did: str) -> dict[str, Any]:
+        """Run a read-only raw Mode 22 query for diagnostics."""
+        if self.api is None or not self.api.is_connected():
+            raise UpdateFailed("Not connected; run attempt_to_connect first")
+
+        header = header.strip().upper()
+        did = did.strip().upper()
+        if len(header) != 6 or any(c not in "0123456789ABCDEF" for c in header):
+            raise ValueError("header must be 6 hex characters")
+        if len(did) != 4 or any(c not in "0123456789ABCDEF" for c in did):
+            raise ValueError("did must be 4 hex characters")
+
+        command = Command(0x22, did, 0, None, None, "", lambda value: value)
+        async with self._api_lock:
+            await self._async_set_can_header(header)
+            try:
+                response = await self.hass.async_add_executor_job(
+                    self.api.query, command
+                )
+            except Exception as err:
+                return {
+                    "header": header,
+                    "did": did,
+                    "error": f"{type(err).__name__}: {err}",
+                }
+
+        return {
+            "header": header,
+            "did": did,
+            "unparsed": list(response.unparsed) if response.unparsed else None,
+            "raw": response.raw.decode("ascii", "replace")
+            if response.raw
+            else None,
+            "value": response.value,
+        }
+
     async def async_shutdown(self) -> None:
         """Shutdown coordinator and any connection."""
         _LOGGER.debug("Shutting down BMS (%s)", self.name)
@@ -220,6 +258,7 @@ class Obd2BleDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Response]]):
 
         force = force or self._force_next_update
         self._force_next_update = False
+        self._api_lock = asyncio.Lock()
 
         if not self.config_entry or not self.config_entry.unique_id:
             _LOGGER.error("No config entry available for coordinator")
@@ -273,11 +312,14 @@ class Obd2BleDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Response]]):
                     _LOGGER.warning("Skipping invalid command: %s", command)
                     continue
                 try:
-                    header = get_command_can_header(command)
-                    if header:
-                        await self._async_set_can_header(header)
-                    _LOGGER.debug("Querying OBD2 for command %s", command)
-                    response: Response = await self.hass.async_add_executor_job(self.api.query, command)
+                    async with self._api_lock:
+                        header = get_command_can_header(command)
+                        if header:
+                            await self._async_set_can_header(header)
+                        _LOGGER.debug("Querying OBD2 for command %s", command)
+                        response: Response = await self.hass.async_add_executor_job(
+                            self.api.query, command
+                        )
                     _LOGGER.debug("Received response for command %s: %s", command, response)
                     if response is not None and response.value is not None:
                         new_data[str(command)] = response
