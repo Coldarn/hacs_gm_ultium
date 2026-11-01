@@ -197,41 +197,59 @@ class Obd2BleDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Response]]):
             )
         self._active_can_header = normalized
 
-    async def async_debug_query(self, header: str, did: str) -> dict[str, Any]:
+    @staticmethod
+    def _raw_transport_query(api: Connection, command: str) -> bytes:
+        """Send a raw ASCII command and return the raw ELM327 response."""
+        api.transport.write_bytes((command + "\r").encode())
+        return api.transport.read_bytes()
+
+    async def async_debug_query(
+        self, header: str, did: str, priority: str = "18"
+    ) -> dict[str, Any]:
         """Run a read-only raw Mode 22 query for diagnostics."""
         if self.api is None or not self.api.is_connected():
             raise UpdateFailed("Not connected; run attempt_to_connect first")
 
         header = header.strip().upper()
         did = did.strip().upper()
+        priority = priority.strip().upper()
         if len(header) != 6 or any(c not in "0123456789ABCDEF" for c in header):
             raise ValueError("header must be 6 hex characters")
         if len(did) != 4 or any(c not in "0123456789ABCDEF" for c in did):
             raise ValueError("did must be 4 hex characters")
+        if len(priority) != 2 or any(c not in "0123456789ABCDEF" for c in priority):
+            raise ValueError("priority must be 2 hex characters")
 
-        command = Command(0x22, did, 0, None, None, "", lambda value: value)
-        async with self._api_lock:
-            await self._async_set_can_header(header)
-            try:
-                response = await self.hass.async_add_executor_job(
-                    self.api.query, command
-                )
-            except Exception as err:
-                return {
-                    "header": header,
-                    "did": did,
-                    "error": f"{type(err).__name__}: {err}",
-                }
-
-        return {
+        result: dict[str, Any] = {
             "header": header,
             "did": did,
-            "unparsed": list(response.unparsed) if response.unparsed else None,
-            "raw": response.raw.decode("ascii", "replace")
-            if response.raw
-            else None,
-            "value": response.value,
+            "priority": priority,
         }
+        async with self._api_lock:
+            try:
+                response = await self.hass.async_add_executor_job(
+                    self.api.query, at_commands.SET_CAN_PRIORITY(hh=priority)
+                )
+                if response.value != "OK":
+                    result["error"] = f"ATCP {priority} rejected: {response.value!r}"
+                    return result
+
+                await self._async_set_can_header(header)
+                raw = await self.hass.async_add_executor_job(
+                    self._raw_transport_query, self.api, f"22{did}"
+                )
+                result["raw"] = raw.decode("ascii", "replace")
+            except Exception as err:
+                result["error"] = f"{type(err).__name__}: {err}"
+            finally:
+                try:
+                    await self.hass.async_add_executor_job(
+                        self.api.query, at_commands.SET_CAN_PRIORITY(hh="18")
+                    )
+                except Exception as err:
+                    _LOGGER.debug("Could not restore CAN priority: %r", err)
+
+        return result
 
     async def async_shutdown(self) -> None:
         """Shutdown coordinator and any connection."""

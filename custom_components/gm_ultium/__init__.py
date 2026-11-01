@@ -53,6 +53,9 @@ DEBUG_QUERY_SCHEMA = vol.Schema(
         vol.Optional("header", default="DACBF1"): vol.All(
             str, vol.Match(r"^[0-9A-Fa-f]{6}$")
         ),
+        vol.Optional("priority", default="18"): vol.All(
+            str, vol.Match(r"^[0-9A-Fa-f]{2}$")
+        ),
     }
 )
 
@@ -176,7 +179,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: Obd2BleConfigEntry) -> b
 
         async def handle_debug_query(call: ServiceCall) -> ServiceResponse:
             return await coordinator.async_debug_query(
-                call.data["header"], call.data["did"]
+                call.data["header"], call.data["did"], call.data["priority"]
             )
 
         hass.services.async_register(

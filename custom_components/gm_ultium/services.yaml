@@ -109,3 +109,10 @@ debug_query:
       default: DACBF1
       selector:
         text: {}
+    priority:
+      name: CAN priority
+      description: Two hex characters; 18 is the default, 14 is the alternate GM priority.
+      required: false
+      default: "18"
+      selector:
+        text: {}
